@@ -14,7 +14,7 @@ class GameController extends Controller
 
         $letters = AmharicLetter::where('group_id', 1)->get();
 
-        $currentLetterIndex = 1;
+        $currentLetterIndex = 0;
 
         return view('game.game', compact('level', 'letters', 'currentLetterIndex'));
     }

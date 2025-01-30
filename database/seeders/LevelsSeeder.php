@@ -14,7 +14,8 @@ class LevelsSeeder extends Seeder
     public function run(): void
     {
         $levels = [
-            ['name' => 'Level 1', 'pattern' => json_encode(['sequential']), 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Level 1', 'pattern' => json_encode(
+                [1,2,3,4,5,6,7]), 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Level 2', 'pattern' => json_encode(['repeat', 'sequential']), 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Level 5', 'pattern' => json_encode(['random']), 'created_at' => now(), 'updated_at' => now()],
         ];

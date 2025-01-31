@@ -47,8 +47,11 @@
         color: red;
         border-bottom: 3px solid red;
     }
+    .none-said {
+        color: red !important;
+    }
     .said-word {
-        color: blue;
+        color: blue !important;
     }
     .correct {
         color: green;
@@ -123,6 +126,8 @@
                 document.querySelector(".said-word").classList.remove("said-word");
             }
 
+            document.querySelectorAll(".letter").forEach(el => el.classList.remove("none-said"));
+
 
             // let fullSpokenPhrase = "";
             // let spokenWord = "";
@@ -172,10 +177,26 @@
 
                 document.querySelector(`[data-letter='${expectedLetter}']`).classList.add("incorrect");
                 // Highlight the letter that matches what was actually spoken
-                let spokenMatch = @json($letters).find(letter => letter.transliterations.includes(spokenWord));
-                if (spokenMatch) {
-                    document.querySelector(`[data-letter='${spokenMatch.letter}']`).classList.add("said-word");
+                // spokenTransliterations = getTransliterationsByLetter(spokenWord)
+                // spokenLetter = getLetterByTransliteration(spokenWord)
+                // console.log('spoken letter ' + spokenLetter)
+                // // let spokenMatch = @json($letters).find(letter => letter.transliterations.includes(spokenWord));
+                // if (spokenLetter) {
+                //     document.querySelector(`[data-letter='${spokenLetter}']`).classList.add("said-word");
+                // }
+
+                let spokenIndex = getIndexByTransliteration(spokenWord, allLetters);
+                console.log('spoken index: ', spokenIndex);
+
+                if (spokenIndex !== -1) {
+                    console.log('in here')
+                    document.querySelectorAll(".letter")[spokenIndex].classList.add("said-word");
+                    document.querySelectorAll(".letter")[spokenIndex].classList.remove("underline");
+                }else{
+                    document.querySelectorAll(".letter").forEach(el => el.classList.add("none-said"));
                 }
+
+
             }
         };
 
@@ -194,9 +215,24 @@
             return []; // Return an empty array if index is out of bounds
         }
 
+        function getTransliterationsByLetter(letter) {
+            let letterObj = allLetters.find(item => item.letter === letter);
+            return letterObj ? letterObj.transliterations : [];
+        }
+
+        function getLetterByTransliteration(transliteration) {
+            let letterObj = allLetters.find(item => item.transliterations.includes(transliteration));
+            return letterObj ? letterObj.letter : null;
+        }
+
+        function getIndexByTransliteration(transliteration) {
+            return allLetters.findIndex(item => item.transliterations.includes(transliteration));
+        }
+
+
         startListening();
 
-        setInterval(startListening, 4000); // Restart listening automatically
+        setInterval(startListening, 3000); // Restart listening automatically
     });
 
 </script>

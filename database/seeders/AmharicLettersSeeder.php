@@ -20,7 +20,7 @@ class AmharicLettersSeeder extends Seeder
             ['letter' => 'ሃ', 'group_id' => 1, 'position' => 4, 'transliterations' => json_encode(['ሀ', 'ሃ', "ሐ", "ሓ", "ኀ", "ኃ", 'hä', 'ha', 'haaa', 'hah', 'huh', 'haaaha']), 'created_at' => now(), 'updated_at' => now()],
             ['letter' => 'ሄ', 'group_id' => 1, 'position' => 5, 'transliterations' => json_encode(['ሄ', "ሔ", "ኄ", 'ሄይ', "ሔይ", "ኄይ", 'he', 'hey','heh', 'hee', 'hate']), 'created_at' => now(), 'updated_at' => now()],
             ['letter' => 'ህ', 'group_id' => 1, 'position' => 6, 'transliterations' => json_encode(['ህ', "ሕ", "ኅ", "ህብ", 'heeeeh', 'eh', 'heh']), 'created_at' => now(), 'updated_at' => now()],
-            ['letter' => 'ሆ', 'group_id' => 1, 'position' => 7, 'transliterations' => json_encode(['ሆ', "ሖ", "ኆ", 'ho', 'oh', 'hoo']), 'created_at' => now(), 'updated_at' => now()],
+            ['letter' => 'ሆ', 'group_id' => 1, 'position' => 7, 'transliterations' => json_encode(['ሆ', "ሖ", "ኆ", 'ho', 'oh', 'hoo', 'who']), 'created_at' => now(), 'updated_at' => now()],
         ];
 
         foreach ($letters as $letter) {

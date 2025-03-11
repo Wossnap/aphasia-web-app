@@ -30,6 +30,12 @@
                     <span>{{ __('app.start_practice') }}</span>
                 </button>
             </div>
+
+            <div class="mobile-controls">
+                <button id="requestPermissionBtn" class="permission-btn">
+                    <i class="fas fa-microphone"></i> Allow Microphone
+                </button>
+            </div>
         </div>
     </div>
 </div>

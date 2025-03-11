@@ -655,3 +655,76 @@ body {
     border-left-color: var(--accent-primary);
     font-weight: 600;
 }
+
+/* Update the button styles in amharic-practice.css */
+
+/* Common button styles */
+.start-btn, .next-word-btn, .manual-listen-btn, .listen-again-btn, .permission-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: white;
+    border-radius: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    transform: translateY(0);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow:
+        0 10px 20px -5px rgba(139, 92, 246, 0.3),
+        0 4px 6px -2px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* Primary buttons (Start, Next Word) */
+.start-btn, .next-word-btn {
+    width: 200px;
+    padding: 1rem 2.5rem;
+    font-size: 1.125rem;
+    margin: 10px;
+}
+
+/* Secondary buttons (Listen Again, Speak) */
+.listen-again-btn, .manual-listen-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    margin: 5px;
+    --accent-primary: #8B5CF6;  /* Your brand purple */
+    --accent-secondary: #3B82F6; /* Your brand blue */
+}
+
+/* Permission button */
+.permission-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    --accent-primary: #FF5722;
+    --accent-secondary: #E64A19;
+}
+
+/* Button icons for secondary buttons */
+.manual-listen-btn i,
+.listen-again-btn i,
+.permission-btn i {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+/* Mobile buttons container */
+.mobile-buttons-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+/* Active state for microphone button */
+.listening-active .manual-listen-btn {
+    --accent-primary: #F44336;
+    --accent-secondary: #C62828;
+    animation: pulse 1.5s infinite;
+}

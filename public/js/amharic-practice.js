@@ -538,23 +538,20 @@ class AmharicPractice {
     }
 
     async validateSpokenWord(spokenWord) {
-        console.log('Validating spoken word:', spokenWord);
-        console.log('Current word:', this.currentWord.word);
-        console.log('Valid transliterations:', this.currentWord.transliterations);
+        if (!this.currentWord) {
+            console.log('No current word to validate against');
+            return;
+        }
 
-        // Clean up the spoken word
-        const cleanSpokenWord = this.cleanWord(spokenWord);
+        const spokenLower = spokenWord.toLowerCase();
+        console.log('Validating:', spokenLower, 'against transliterations:', this.currentWord.transliterations);
 
-        // Check against all valid transliterations
-        const isCorrect = this.currentWord.transliterations.some(trans => {
-            const cleanTrans = this.cleanWord(trans);
-            const match = cleanTrans === cleanSpokenWord;
-            console.log(`Comparing: "${cleanSpokenWord}" with "${cleanTrans}" - Match: ${match}`);
-            return match;
-        });
+        // Check if any transliteration is found within the spoken text
+        const isCorrect = this.currentWord.transliterations.some(trans =>
+            spokenLower.includes(trans.toLowerCase())
+        );
 
-        console.log('Is correct:', isCorrect);
-
+        const feedback = document.getElementById('speechFeedback');
         if (isCorrect) {
             this.showSuccessFeedback();
 

@@ -66,7 +66,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'ምሳ',
-                        'transliterations' => ['ምሳ', 'mesa', 'ሚሳ'],
+                        'transliterations' => ['ምሳ', 'mesa', 'ሚሳ', 'መሳ', 'ንስሐ', 'ንስሃ', 'ንስሀ'],
                         'audio_path' => 'mesa.ogg',
                         'levels' => [1]
                     ],

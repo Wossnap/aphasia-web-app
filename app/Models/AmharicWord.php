@@ -16,4 +16,11 @@ class AmharicWord extends Model
     protected $casts = [
         'transliterations' => 'array'
     ];
+
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_word')
+                    ->withPivot('level')
+                    ->withTimestamps();
+    }
 }

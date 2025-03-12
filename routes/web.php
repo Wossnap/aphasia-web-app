@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\App;
 Route::get('/', [AmharicWordController::class, 'practice'])->name('practice.amharic');
 // Route::get('/practice/amharic', [AmharicWordController::class, 'practice'])->name('practice.amharic');
 Route::get('/api/random-amharic-word', [AmharicWordController::class, 'getRandomWord']);
+Route::get('/api/categories', [AmharicWordController::class, 'getCategories']);
+Route::get('/api/categories/{category}/levels', [AmharicWordController::class, 'getLevels']);
 
 Route::get('language/{locale}', function ($locale) {
     if (in_array($locale, config('app.available_locales', ['en']))) {

@@ -15,13 +15,16 @@ class AmharicPractice {
         this.pageVisible = true;
         this.manualListeningMode = true; // Enable manual mode for all devices, not just mobile
         this.mobileRecognitionDelay = 1000; // Added for mobile recognition delay
+        this.currentCategory = null;
+        this.currentLevel = null;
 
         // Initialize voices first
         this.initializeVoices().then(() => {
             this.initializeSpeechRecognition();
             this.initializeEventListeners();
             this.setupVisibilityHandling();
-            this.loadRandomWord();
+            this.initializeSettingsControls();
+            this.updateButtonText();
         });
     }
 
@@ -275,19 +278,16 @@ class AmharicPractice {
     }
 
     initializeEventListeners() {
-        const actionBtn = document.getElementById('actionBtn');
-        actionBtn.addEventListener('click', () => {
-            if (!this.isStarted) {
-                this.isStarted = true;
-                actionBtn.textContent = window.translations.next_word;
-                actionBtn.classList.remove('start-btn');
-                actionBtn.classList.add('next-word-btn');
-                document.getElementById('speechFeedback').classList.add('active');
-                this.playWordAndListen();
-            } else {
-                this.loadRandomWord();
-                this.playWordAndListen();
-            }
+        const nextWordBtn = document.getElementById('nextWordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        nextWordBtn.addEventListener('click', async () => {
+            await this.loadRandomWord();
+            await this.playWordAndListen();
+        });
+
+        stopBtn.addEventListener('click', () => {
+            this.stopPractice();
         });
 
         // Add permission button handler
@@ -305,13 +305,25 @@ class AmharicPractice {
 
     async loadRandomWord() {
         try {
+            const params = new URLSearchParams();
+            if (this.currentCategory) params.append('category_id', this.currentCategory);
+            if (this.currentLevel) params.append('level', this.currentLevel);
+
             // Stop current activities
             this.stopListening();
             window.speechSynthesis.cancel();
             this.isSpeaking = false;
 
-            const response = await fetch('/api/random-amharic-word');
+            const response = await fetch(`/api/random-amharic-word?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch word');
+            }
+
             const newWord = await response.json();
+            if (!newWord) {
+                console.error('No words available for selected category/level');
+                return false;
+            }
 
             // Clear current word first
             this.currentWord = null;
@@ -328,17 +340,21 @@ class AmharicPractice {
                 document.getElementById('speechFeedback').classList.add('active');
             }
 
-            // Return a promise that resolves when everything is ready
-            return new Promise(resolve => setTimeout(resolve, 100));
+            return true; // Return true if word was loaded successfully
         } catch (error) {
             console.error('Error loading word:', error);
+            return false;
         }
     }
 
-    playWordAndListen() {
+    async playWordAndListen() {
         if (!this.currentWord) {
-            console.error('No current word available');
-            return;
+            const wordLoaded = await this.loadRandomWord();
+            if (!wordLoaded) {
+                alert('No words available for the selected category and level');
+                this.stopPractice();
+                return;
+            }
         }
 
         // Hide listening feedback while playing audio
@@ -350,42 +366,26 @@ class AmharicPractice {
 
         if (this.currentWord.audio_path) {
             const audioPath = `/audio/${this.currentWord.audio_path}`;
-            console.log('Playing audio from:', audioPath, 'for word:', this.currentWord.word);
+            console.log('Playing audio from:', audioPath);
 
             const audio = new Audio(audioPath);
 
-            audio.onerror = (error) => {
-                console.error('Error loading audio file:', error);
-                console.log('Falling back to text-to-speech');
+            audio.onended = () => {
+                console.log('Audio playback ended');
+                setTimeout(() => {
+                    speechFeedback.classList.add('active');
+                    this.startListening();
+                }, 500);
+            };
+
+            try {
+                await audio.play();
+            } catch (error) {
+                console.error('Audio playback error:', error);
                 this.useTextToSpeech();
-            };
-
-            audio.onloadstart = () => {
-                console.log('Loading audio file for:', this.currentWord.word);
-            };
-
-            audio.play()
-                .then(() => {
-                    console.log('Audio playback started for:', this.currentWord.word);
-
-                    audio.onended = () => {
-                        console.log('Audio playback ended for:', this.currentWord.word);
-                        setTimeout(() => {
-                            // Show listening feedback after audio ends
-                            speechFeedback.classList.add('active');
-
-                            // Show buttons for all devices
-                            this.showListeningOptions();
-                        }, 500);
-                    };
-                })
-                .catch((error) => {
-                    console.error('Audio playback error:', error);
-                    this.useTextToSpeech();
-                });
+            }
         } else {
-            console.log('No audio file available for:', this.currentWord.word);
-            setTimeout(() => this.useTextToSpeech(), 100);
+            this.useTextToSpeech();
         }
     }
 
@@ -475,6 +475,11 @@ class AmharicPractice {
     }
 
     startListening() {
+        if (!this.recognition) {
+            console.error('Speech recognition not initialized');
+            return;
+        }
+
         if (this.isSpeaking) {
             console.log('Currently speaking, not starting recognition');
             return;
@@ -496,44 +501,15 @@ class AmharicPractice {
             this.isRecognitionActive = true;
             this.finalResultProcessed = false;
 
-            const manualBtn = document.querySelector('.manual-listen-btn');
-            if (manualBtn) manualBtn.remove();
-
-            const existingNote = document.querySelector('.recognition-note');
-            if (existingNote) existingNote.remove();
-
             const feedback = document.getElementById('speechFeedback');
             feedback.classList.add('listening-active');
             document.getElementById('spokenWord').textContent = '';
-
-            if (this.mobileDevice) {
-                const statusElement = feedback.querySelector('.speech-status');
-                if (statusElement) {
-                    statusElement.textContent = 'Listening...';
-                }
-
-                if ('vibrate' in navigator) {
-                    navigator.vibrate(50);
-                }
-
-                feedback.classList.add('mobile-listening');
-            }
 
             setTimeout(() => {
                 if (this.isListening) {
                     try {
                         this.recognition.start();
                         console.log('Recognition actually started');
-
-                        if (this.mobileDevice) {
-                            setTimeout(() => {
-                                if (this.isRecognitionActive && !this.finalResultProcessed) {
-                                    console.log('Mobile timeout - stopping recognition');
-                                    this.stopListening();
-                                    this.showListeningOptions();
-                                }
-                            }, 7000);
-                        }
                     } catch (e) {
                         console.error('Failed to start recognition', e);
                         this.showListeningOptions();
@@ -545,21 +521,19 @@ class AmharicPractice {
             console.error('Error starting recognition:', error);
             this.isRecognitionActive = false;
             this.isListening = false;
-
-            if (this.manualListeningMode) {
-                this.showListeningOptions();
-            }
         }
     }
 
     stopListening() {
-        try {
-            console.log('Stopping recognition');
-            this.isListening = false;
-            this.isRecognitionActive = false;
-            this.recognition.stop();
-        } catch (error) {
-            console.error('Error stopping recognition:', error);
+        if (this.recognition) {
+            try {
+                this.isListening = false;
+                this.isRecognitionActive = false;
+                this.recognition.abort(); // Use abort() instead of stop()
+                console.log('Recognition aborted');
+            } catch (error) {
+                console.error('Error stopping recognition:', error);
+            }
         }
     }
 
@@ -761,87 +735,85 @@ class AmharicPractice {
     }
 
     showListeningOptions() {
-        // Remove existing buttons and note if there are any
-        const existingBtn = document.querySelector('.manual-listen-btn');
-        if (existingBtn) existingBtn.remove();
+        // Remove existing container if it exists
+        const existingContainer = document.querySelector('.mobile-buttons-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
 
-        const existingListenAgainBtn = document.querySelector('.listen-again-btn');
-        if (existingListenAgainBtn) existingListenAgainBtn.remove();
-
-        const existingNote = document.querySelector('.recognition-note');
-        if (existingNote) existingNote.remove();
-
-        // Create buttons container
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'mobile-buttons-container';
-
-        // Create listen again button (for all devices)
-        const listenAgainBtn = document.createElement('button');
-        listenAgainBtn.className = 'listen-again-btn';
-        listenAgainBtn.innerHTML = '<i class="fas fa-volume-up"></i> Listen Again';
-        buttonContainer.appendChild(listenAgainBtn);
-
-        // Only create speak button on mobile devices
+        // Only show listening options on mobile
         if (this.mobileDevice) {
-            // Create speak button for mobile only
-            const speakBtn = document.createElement('button');
-            speakBtn.className = 'manual-listen-btn';
-            speakBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak';
-            buttonContainer.appendChild(speakBtn);
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'mobile-buttons-container';
 
-            // Add click event for speak button
-            speakBtn.addEventListener('click', () => {
-                this.startListening();
-            });
+            // Create listen again button (for all devices)
+            const listenAgainBtn = document.createElement('button');
+            listenAgainBtn.className = 'listen-again-btn';
+            listenAgainBtn.innerHTML = '<i class="fas fa-volume-up"></i> Listen Again';
+            buttonContainer.appendChild(listenAgainBtn);
 
-            // Only add note on mobile and on first appearance
-            if (!sessionStorage.getItem('instructionShown')) {
-                const noteElement = document.createElement('div');
-                noteElement.className = 'recognition-note';
-                noteElement.textContent = 'Speak clearly after tapping the microphone';
+            // Only create speak button on mobile devices
+            if (this.mobileDevice) {
+                // Create speak button for mobile only
+                const speakBtn = document.createElement('button');
+                speakBtn.className = 'manual-listen-btn';
+                speakBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak';
+                buttonContainer.appendChild(speakBtn);
 
-                // Position in the speech feedback area
-                const speechFeedback = document.getElementById('speechFeedback');
-                speechFeedback.appendChild(noteElement);
+                // Add click event for speak button
+                speakBtn.addEventListener('click', () => {
+                    this.startListening();
+                });
 
-                // Mark that we've shown the instruction
-                sessionStorage.setItem('instructionShown', 'true');
-            }
-        } else {
-            // On desktop, start listening automatically after a short delay
-            setTimeout(() => {
-                this.startListening();
-            }, 1000);
-        }
+                // Only add note on mobile and on first appearance
+                if (!sessionStorage.getItem('instructionShown')) {
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'recognition-note';
+                    noteElement.textContent = 'Speak clearly after tapping the microphone';
 
-        // Position in the speech feedback area
-        const speechFeedback = document.getElementById('speechFeedback');
-        speechFeedback.appendChild(buttonContainer);
+                    // Position in the speech feedback area
+                    const speechFeedback = document.getElementById('speechFeedback');
+                    speechFeedback.appendChild(noteElement);
 
-        // Update the status text
-        const statusElement = speechFeedback.querySelector('.speech-status');
-        if (statusElement) {
-            statusElement.textContent = this.mobileDevice ? 'Ready' : 'Listening...';
-        }
-
-        // Add click event for listen again button
-        listenAgainBtn.addEventListener('click', () => {
-            // First stop any ongoing recognition
-            this.stopListening();
-
-            // Play the word again
-            if (this.currentWord.audio_path) {
-                const audioPath = `/audio/${this.currentWord.audio_path}`;
-                const audio = new Audio(audioPath);
-                audio.play()
-                    .catch(error => {
-                        console.error('Error playing audio:', error);
-                        this.useTextToSpeech();
-                    });
+                    // Mark that we've shown the instruction
+                    sessionStorage.setItem('instructionShown', 'true');
+                }
             } else {
-                this.useTextToSpeech();
+                // On desktop, start listening automatically after a short delay
+                setTimeout(() => {
+                    this.startListening();
+                }, 1000);
             }
-        });
+
+            // Position in the speech feedback area
+            const speechFeedback = document.getElementById('speechFeedback');
+            speechFeedback.appendChild(buttonContainer);
+
+            // Update the status text
+            const statusElement = speechFeedback.querySelector('.speech-status');
+            if (statusElement) {
+                statusElement.textContent = this.mobileDevice ? 'Ready' : 'Listening...';
+            }
+
+            // Add click event for listen again button
+            listenAgainBtn.addEventListener('click', () => {
+                // First stop any ongoing recognition
+                this.stopListening();
+
+                // Play the word again
+                if (this.currentWord.audio_path) {
+                    const audioPath = `/audio/${this.currentWord.audio_path}`;
+                    const audio = new Audio(audioPath);
+                    audio.play()
+                        .catch(error => {
+                            console.error('Error playing audio:', error);
+                            this.useTextToSpeech();
+                        });
+                } else {
+                    this.useTextToSpeech();
+                }
+            });
+        }
     }
 
     testMicrophonePermission() {
@@ -857,6 +829,115 @@ class AmharicPractice {
                 });
         } else {
             console.error('getUserMedia not supported on this device');
+        }
+    }
+
+    initializeSettingsControls() {
+        const categoryButtons = document.querySelectorAll('.category-btn');
+        const levelButtons = document.querySelector('.level-buttons');
+        const levelButtonsContainer = document.querySelector('.level-buttons-container');
+        const practiceArea = document.getElementById('practiceArea');
+        const practiceSettings = document.getElementById('practiceSettings');
+        const randomPracticeBtn = document.getElementById('randomPracticeBtn');
+
+        // Add random practice button handler
+        randomPracticeBtn.addEventListener('click', () => {
+            this.currentCategory = null;
+            this.currentLevel = null;
+
+            this.isStarted = true;
+            practiceSettings.style.display = 'none';
+            practiceArea.style.display = 'block';
+            document.getElementById('speechFeedback').classList.add('active');
+            this.playWordAndListen();
+        });
+
+        categoryButtons.forEach(button => {
+            button.addEventListener('click', async () => {
+                // Remove selected class from all category buttons
+                categoryButtons.forEach(btn => btn.classList.remove('selected'));
+                // Add selected class to clicked button
+                button.classList.add('selected');
+
+                this.currentCategory = button.dataset.category;
+
+                try {
+                    const response = await fetch(`/api/categories/${this.currentCategory}/levels`);
+                    if (!response.ok) throw new Error('Failed to fetch levels');
+
+                    const levels = await response.json();
+
+                    // Create level buttons
+                    levelButtonsContainer.innerHTML = levels.map(level =>
+                        `<button class="level-btn" data-level="${level}">Level ${level}</button>`
+                    ).join('');
+
+                    // Show level buttons
+                    levelButtons.style.display = 'block';
+
+                    // Add click handlers to level buttons
+                    document.querySelectorAll('.level-btn').forEach(levelBtn => {
+                        levelBtn.addEventListener('click', () => {
+                            this.currentLevel = levelBtn.dataset.level;
+                            this.isStarted = true;
+                            practiceSettings.style.display = 'none';
+                            practiceArea.style.display = 'block';
+                            document.getElementById('speechFeedback').classList.add('active');
+                            this.playWordAndListen();
+                        });
+                    });
+                } catch (error) {
+                    console.error('Error fetching levels:', error);
+                }
+            });
+        });
+    }
+
+    stopPractice() {
+        this.isStarted = false;
+        this.stopListening();
+        window.speechSynthesis.cancel();
+
+        // Clear all feedback and state
+        this.currentWord = null;
+        this.finalResultProcessed = false;
+        this.isRecognitionActive = false;
+        this.isListening = false;
+        this.isSpeaking = false;
+
+        // Remove any existing mobile buttons container
+        const existingContainer = document.querySelector('.mobile-buttons-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+
+        // Show/hide appropriate sections
+        document.getElementById('practiceSettings').style.display = 'block';
+        document.getElementById('practiceArea').style.display = 'none';
+
+        // Hide and clear feedback
+        const speechFeedback = document.getElementById('speechFeedback');
+        speechFeedback.classList.remove('active');
+        speechFeedback.classList.remove('listening-active');
+        document.getElementById('spokenWord').textContent = '';
+        document.getElementById('amharicWord').textContent = '';
+
+        // Force stop recognition
+        if (this.recognition) {
+            try {
+                this.recognition.abort();
+            } catch (e) {
+                console.log('Recognition abort error:', e);
+            }
+        }
+    }
+
+    updateButtonText() {
+        const actionBtn = document.getElementById('actionBtn');
+        if (!this.isStarted) {
+            actionBtn.querySelector('span').textContent = 'Start Practice';
+        } else {
+            actionBtn.querySelector('span').textContent = 'Next Word';
         }
     }
 }

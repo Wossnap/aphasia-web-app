@@ -336,6 +336,9 @@ class AmharicPractice {
             document.getElementById('amharicWord').textContent = this.currentWord.word;
             console.log('New word loaded:', this.currentWord.word);
 
+            // Load GIF if available
+            this.loadWordGif();
+
             if (this.isStarted) {
                 document.getElementById('speechFeedback').classList.add('active');
             }
@@ -936,6 +939,60 @@ class AmharicPractice {
         } else {
             actionBtn.querySelector('span').textContent = 'Next Word';
         }
+    }
+
+    loadWordGif() {
+        const gifContainer = document.getElementById('wordGifContainer');
+        const gifImage = document.getElementById('wordGif');
+        const gifWrapper = document.querySelector('.gif-wrapper');
+
+        // For debugging - show what path we have
+        console.log('Current word:', this.currentWord);
+        console.log('Current word gif path:', this.currentWord ? this.currentWord.gif_path : 'No word loaded');
+
+        // Reset any previous states
+        gifWrapper.classList.remove('loading', 'placeholder');
+
+        if (!this.currentWord || !this.currentWord.gif_path) {
+            // Set default "no image" placeholder instead of hiding
+            gifContainer.style.display = 'flex';
+            gifImage.src = '/images/no-image-placeholder.svg'; // Changed to SVG
+            gifWrapper.classList.add('placeholder');
+            return;
+        }
+
+        // Show GIF container
+        gifContainer.style.display = 'flex';
+
+        // Add loading state
+        gifWrapper.classList.add('loading');
+
+        // Set GIF source - Make sure the path starts correctly
+        // Trim any leading slashes from the gif_path to ensure we don't double up
+        const cleanPath = this.currentWord.gif_path.replace(/^\/+/, '');
+        const gifPath = `/gifs/${cleanPath}`;
+
+        console.log('Attempting to load GIF from:', gifPath);
+
+        // Create a new Image object to test if the file exists
+        const testImage = new Image();
+        testImage.onload = () => {
+            // If the image loads successfully, set it as the source
+            gifImage.src = gifPath;
+            gifWrapper.classList.remove('loading');
+            console.log('GIF loaded successfully');
+        };
+
+        testImage.onerror = () => {
+            console.error('Failed to load GIF at path:', gifPath);
+            // Set default "broken image" placeholder
+            gifImage.src = '/images/broken-image.svg'; // Changed to SVG
+            gifWrapper.classList.add('placeholder');
+            gifWrapper.classList.remove('loading');
+        };
+
+        // Start loading the test image
+        testImage.src = gifPath;
     }
 }
 

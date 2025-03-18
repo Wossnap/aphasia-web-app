@@ -10,7 +10,8 @@ class AmharicWord extends Model
         'word',
         'transliterations',
         'meaning',
-        'audio_path'
+        'audio_path',
+        'gif_path'
     ];
 
     protected $casts = [

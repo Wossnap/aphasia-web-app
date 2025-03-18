@@ -27,7 +27,8 @@ class AmharicWordController extends Controller
             'word' => $word->word,
             'transliterations' => $word->transliterations,
             'meaning' => $word->meaning,
-            'audio_path' => $word->audio_path
+            'audio_path' => $word->audio_path,
+            'gif_path' => $word->gif_path
         ]);
     }
 

@@ -39,37 +39,45 @@
     </div>
 
     <div id="practiceArea" class="practice-area" style="display: none;">
-        <div class="practice-card">
-            <div class="word-header">
-                <div class="grid-pattern"></div>
-                <div class="gradient-overlay"></div>
-                <h2 class="amharic-word" id="amharicWord"></h2>
+        <div class="practice-layout">
+            <div class="word-gif-container" id="wordGifContainer">
+                <div class="gif-wrapper">
+                    <img id="wordGif" src="" alt="Word illustration" class="word-gif">
+                </div>
             </div>
 
-            <div class="p-8 relative z-10">
-                <div id="speechFeedback" class="speech-feedback">
-                    <div class="listening-indicator">
-                        <div class="circle-ripple"></div>
-                        <div class="circle-core"></div>
+            <div class="practice-card">
+                <div class="word-header">
+                    <div class="grid-pattern"></div>
+                    <div class="gradient-overlay"></div>
+                    <h2 class="amharic-word" id="amharicWord"></h2>
+                </div>
+
+                <div class="p-8 relative z-10">
+                    <div id="speechFeedback" class="speech-feedback">
+                        <div class="listening-indicator">
+                            <div class="circle-ripple"></div>
+                            <div class="circle-core"></div>
+                        </div>
+                        <p class="speech-status">Listening...</p>
+                        <p class="speech-result">Spoken word: <span id="spokenWord"></span></p>
                     </div>
-                    <p class="speech-status">Listening...</p>
-                    <p class="speech-result">Spoken word: <span id="spokenWord"></span></p>
-                </div>
 
-                <div class="button-container">
-                    <button id="nextWordBtn" class="next-word-btn">
-                        <span>Next Word</span>
-                    </button>
-                    <button id="stopBtn" class="stop-btn">
-                        <i class="fas fa-stop-circle"></i>
-                        <span>Stop</span>
-                    </button>
-                </div>
+                    <div class="button-container">
+                        <button id="nextWordBtn" class="next-word-btn">
+                            <span>Next Word</span>
+                        </button>
+                        <button id="stopBtn" class="stop-btn">
+                            <i class="fas fa-stop-circle"></i>
+                            <span>Stop</span>
+                        </button>
+                    </div>
 
-                <div class="mobile-controls">
-                    <button id="requestPermissionBtn" class="permission-btn">
-                        <i class="fas fa-microphone"></i> Allow Microphone
-                    </button>
+                    <div class="mobile-controls">
+                        <button id="requestPermissionBtn" class="permission-btn">
+                            <i class="fas fa-microphone"></i> Allow Microphone
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

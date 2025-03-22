@@ -37,7 +37,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'ወሰን',
-                        'transliterations' => ['ወሰን', 'wesen'],
+                        'transliterations' => ['ወሰን', 'wesen', 'ዋስን', 'ዋሳን', 'ወሰ', 'ወስነ',
                         'audio_path' => 'wesen.ogg',
                         'levels' => [1],
                         'gif_path' => 'family/wesen.gif'
@@ -51,7 +51,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'መሰሉ',
-                        'transliterations' => ['መሰሉ', 'meselu'],
+                        'transliterations' => ['መሰሉ', 'meselu', 'መሠሩ', 'መሰሩ', 'መሠሉ'],
                         'audio_path' => 'meselu.ogg',
                         'levels' => [1],
                         'gif_path' => 'family/meselu.gif'

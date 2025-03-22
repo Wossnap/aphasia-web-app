@@ -37,7 +37,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'ወሰን',
-                        'transliterations' => ['ወሰን', 'wesen', 'ዋስን', 'ዋሳን', 'ወሰ', 'ወስነ',
+                        'transliterations' => ['ወሰን', 'wesen', 'ዋስን', 'ዋሳን', 'ወሰ', 'ወስነ'],
                         'audio_path' => 'wesen.ogg',
                         'levels' => [1],
                         'gif_path' => 'family/wesen.gif'

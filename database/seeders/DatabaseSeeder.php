@@ -16,17 +16,17 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         $this->call([
-            AmharicLetterGroupsSeeder::class,
-            AmharicLettersSeeder::class,
-            LevelsSeeder::class,
+            // AmharicLetterGroupsSeeder::class,
+            // AmharicLettersSeeder::class,
+            // LevelsSeeder::class,
             AmharicWordAndCategorySeeder::class,
         ]);
 
         // Example user creation
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-        ]);
+        // User::factory()->create([
+        //     'name' => 'Test User',
+        //     'email' => 'test@example.com',
+        //     'password' => 'password',
+        // ]);
     }
 }

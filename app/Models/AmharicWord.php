@@ -11,11 +11,14 @@ class AmharicWord extends Model
         'transliterations',
         'meaning',
         'audio_path',
-        'gif_path'
+        'gif_path',
+        'show_in_random',
+        'image_path'
     ];
 
     protected $casts = [
-        'transliterations' => 'array'
+        'transliterations' => 'array',
+        'show_in_random' => 'boolean'
     ];
 
     public function categories()

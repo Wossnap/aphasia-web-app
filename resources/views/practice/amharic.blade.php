@@ -80,6 +80,12 @@
                     </div>
                 </div>
             </div>
+
+            <div class="word-image-container" id="wordImageContainer">
+                <div class="image-wrapper">
+                    <img id="wordImage" src="" alt="Word illustration" class="word-image">
+                </div>
+            </div>
         </div>
     </div>
 </div>

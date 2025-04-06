@@ -339,6 +339,9 @@ class AmharicPractice {
             // Load GIF if available
             this.loadWordGif();
 
+            // Load image if available
+            this.loadWordImage();
+
             if (this.isStarted) {
                 document.getElementById('speechFeedback').classList.add('active');
             }
@@ -993,6 +996,68 @@ class AmharicPractice {
 
         // Start loading the test image
         testImage.src = gifPath;
+    }
+
+    loadWordImage() {
+        const imageContainer = document.getElementById('wordImageContainer');
+        const imageElement = document.getElementById('wordImage');
+        const imageWrapper = document.querySelector('.image-wrapper');
+
+        if (!imageContainer || !imageElement || !imageWrapper) {
+            console.error('Missing image container elements:', {
+                container: !!imageContainer,
+                image: !!imageElement,
+                wrapper: !!imageWrapper
+            });
+            return;
+        }
+
+        console.log('Image container:', imageContainer);
+        console.log('Image element:', imageElement);
+
+        // Reset any previous states
+        imageWrapper.classList.remove('loading', 'placeholder');
+
+        if (!this.currentWord || !this.currentWord.image_path) {
+            // Set default "no image" placeholder
+            imageContainer.style.display = 'flex';
+            imageElement.src = '/images/no-image-placeholder.svg';
+            imageWrapper.classList.add('placeholder');
+            return;
+        }
+
+        // Show image container
+        imageContainer.style.display = 'flex';
+
+        // Add loading state
+        imageWrapper.classList.add('loading');
+
+        // Set image source
+        const cleanPath = this.currentWord.image_path.replace(/^\/+/, '');
+        const imagePath = `/images/${cleanPath}`;
+        console.log('Image path:', imagePath);
+
+        console.log('Attempting to load image from:', imagePath);
+
+        // Create a new Image object to test if the file exists
+        const testImage = new Image();
+        testImage.onload = () => {
+            // If the image loads successfully, set it as the source
+            imageElement.src = imagePath;
+            imageWrapper.classList.remove('loading');
+            console.log('Image loaded successfully');
+        };
+
+        testImage.onerror = () => {
+            console.error('Failed to load image at path:', imagePath);
+            // Set default "broken image" placeholder
+            imageElement.src = '/images/broken-image.svg';
+            imageWrapper.classList.add('placeholder');
+            imageWrapper.classList.remove('loading');
+        };
+
+        // Start loading the test image
+        testImage.src = imagePath;
     }
 }
 

@@ -28,7 +28,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'audio_path' => 'temesgen.ogg',
                         'gif_path' => 'family/temesgen.gif',
                         'show_in_random' => true,
-                        'image_path' => 'family/temesgen_image.jpg'
+                        'image_path' => null
                     ],
                     [
                         'word' => 'ሙሉ',
@@ -37,28 +37,34 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'family/mulu.gif',
                         'show_in_random' => true,
-                        'image_path' => 'family/mulu_image.jpg'
+                        'image_path' => null
                     ],
                     [
                         'word' => 'ወሰን',
                         'transliterations' => ['ወሰን', 'wesen', 'ዋስን', 'ዋሳን', 'ወሰ', 'ወስነ'],
                         'audio_path' => 'wesen.ogg',
                         'levels' => [1],
-                        'gif_path' => 'family/wesen.gif'
+                        'gif_path' => 'family/wesen.gif',
+                        'show_in_random' => true,
+                        'image_path' => null
                     ],
                     [
                         'word' => 'ሚሚ',
                         'transliterations' => ['ሚሚ', 'mimi'],
                         'audio_path' => 'mimi.ogg',
                         'levels' => [1],
-                        'gif_path' => 'family/mimi.gif'
+                        'gif_path' => 'family/mimi.gif',
+                        'show_in_random' => true,
+                        'image_path' => null
                     ],
                     [
                         'word' => 'መሰሉ',
                         'transliterations' => ['መሰሉ', 'meselu', 'መሠሩ', 'መሰሩ', 'መሠሉ'],
                         'audio_path' => 'meselu.ogg',
                         'levels' => [1],
-                        'gif_path' => 'family/meselu.gif'
+                        'gif_path' => 'family/meselu.gif',
+                        'show_in_random' => true,
+                        'image_path' => null
                     ],
                 ]
             ],
@@ -73,21 +79,25 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'useful/water.gif',
                         'show_in_random' => true,
-                        'image_path' => 'useful/water_image.jpg'
+                        'image_path' => null
                     ],
                     [
                         'word' => 'ምሳ',
                         'transliterations' => ['ምሳ', 'mesa', 'ሚሳ', 'መሳ', 'ንስሐ', 'ንስሃ', 'ንስሀ'],
                         'audio_path' => 'mesa.ogg',
                         'levels' => [1],
-                        'gif_path' => 'useful/lunch.gif'
+                        'gif_path' => 'useful/lunch.gif',
+                        'show_in_random' => true,
+                        'image_path' => null
                     ],
                     [
                         'word' => 'ዳቦ',
                         'transliterations' => ['ዳቦ', 'dabo'],
                         'audio_path' => 'dabo.ogg',
                         'levels' => [1],
-                        'gif_path' => 'useful/bread.gif'
+                        'gif_path' => 'useful/bread.gif',
+                        'show_in_random' => true,
+                        'image_path' => null
                     ],
                 ]
             ],
@@ -102,7 +112,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'greetings/hello.gif',
                         'show_in_random' => false,
-                        'image_path' => 'greetings/hello_image.jpg'
+                        'image_path' => null
                     ],
                 ]
             ],
@@ -117,7 +127,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/and.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/and_image.jpg'
+                        'image_path' => 'numbers/and.jpg'
                     ],
                     [
                         'word' => 'ሁለት - 2',
@@ -126,7 +136,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/hulet.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/hulet_image.jpg'
+                        'image_path' => 'numbers/hulet.jpg'
                     ],
                     [
                         'word' => 'ሶስት - 3',
@@ -135,7 +145,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/sost.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/sost_image.jpg'
+                        'image_path' => 'numbers/sost.jpg'
                     ],
                     [
                         'word' => 'አራት - 4',
@@ -144,7 +154,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/arat.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/arat_image.jpg'
+                        'image_path' => 'numbers/arat.jpg'
                     ],
                     [
                         'word' => 'አምስት - 5',
@@ -153,7 +163,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/amest.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/amest_image.jpg'
+                        'image_path' => 'numbers/amest.jpg'
                     ],
                     [
                         'word' => 'ስድስት - 6',
@@ -162,7 +172,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/sidist.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/sidist_image.jpg'
+                        'image_path' => 'numbers/sidist.jpg'
                     ],
                     [
                         'word' => 'ሰባት - 7',
@@ -171,7 +181,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/sebat.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/sebat_image.jpg'
+                        'image_path' => 'numbers/sebat.jpg'
                     ],
                     [
                         'word' => 'ስምንት - 8',
@@ -180,7 +190,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/smnt.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/smnt_image.jpg'
+                        'image_path' => 'numbers/smnt.jpg'
                     ],
                     [
                         'word' => 'ዘጠኝ - 9',
@@ -189,7 +199,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/zetegn.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/zetegn_image.jpg'
+                        'image_path' => 'numbers/zetegn.jpg'
                     ],
                     [
                         'word' => 'አስር - 10',
@@ -198,7 +208,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                         'levels' => [1],
                         'gif_path' => 'numbers/asir.gif',
                         'show_in_random' => false,
-                        'image_path' => 'numbers/asir_image.jpg'
+                        'image_path' => 'numbers/asir.jpg'
                     ]
                 ]
             ]

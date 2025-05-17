@@ -140,7 +140,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'ሶስት - 3',
-                        'transliterations' => ['ሶስት', 'ሶሥት', 'ሥስት', 'ሦሥት', 'sost', '3'],
+                        'transliterations' => ['ሶስት', 'ሶሥት', 'ሦስት', 'ሦሥት', 'sost', '3'],
                         'audio_path' => 'sost.ogg',
                         'levels' => [1],
                         'gif_path' => 'numbers/sost.gif',
@@ -176,7 +176,7 @@ class AmharicWordAndCategorySeeder extends Seeder
                     ],
                     [
                         'word' => 'ሰባት - 7',
-                        'transliterations' => ['ሰባት', 'sebat', '7'],
+                        'transliterations' => ['ሰባት', 'ሠባት', 'ሳባት', 'ሣባት', 'sebat', '7'],
                         'audio_path' => 'sebat.ogg',
                         'levels' => [1],
                         'gif_path' => 'numbers/sebat.gif',

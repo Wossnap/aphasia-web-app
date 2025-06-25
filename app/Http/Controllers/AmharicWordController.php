@@ -31,15 +31,15 @@ class AmharicWordController extends Controller
             return response()->json(null);
         }
 
-        // Return all necessary word data
+        // Return all necessary word data with full asset paths from public folder
         return response()->json([
             'id' => $word->id,
             'word' => $word->word,
             'transliterations' => $word->transliterations,
             'meaning' => $word->meaning,
-            'audio_path' => $word->audio_path,
-            'gif_path' => $word->gif_path,  // This should already have category-specific path
-            'image_path' => $word->image_path, // This should already have category-specific path
+            'audio_path' => $word->audio_path ? asset('audio/' . $word->audio_path) : null,
+            'gif_path' => $word->gif_path ? asset('gifs/' . $word->gif_path) : null,
+            'image_path' => $word->image_path ? asset('images/' . $word->image_path) : null,
             'show_in_random' => $word->show_in_random
         ]);
     }

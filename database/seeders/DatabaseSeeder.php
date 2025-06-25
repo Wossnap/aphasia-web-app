@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             // AmharicLettersSeeder::class,
             // LevelsSeeder::class,
             AmharicWordAndCategorySeeder::class,
+            AdminSeeder::class,
         ]);
 
         // Example user creation

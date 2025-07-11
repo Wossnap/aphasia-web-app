@@ -49,6 +49,7 @@ class WordController extends Controller
             'meaning' => 'nullable|string|max:255',
             'transliterations' => 'nullable|string',
             'audio_file' => 'nullable|mimes:mp3,wav,ogg|max:10240',
+            'recorded_audio_data' => 'nullable|string',
             'image_file' => 'nullable|image|max:5120',
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
@@ -78,6 +79,14 @@ class WordController extends Controller
             $extension = $audioFile->getClientOriginalExtension();
             $audioFileName = $originalName . '_' . $word->id . '.' . $extension;
             $audioFile->move(public_path('audio'), $audioFileName);
+            $word->update(['audio_path' => $audioFileName]);
+        } elseif ($request->filled('recorded_audio_data')) {
+            // Handle recorded audio
+            $audioData = $request->input('recorded_audio_data');
+            $audioData = str_replace('data:audio/wav;base64,', '', $audioData);
+            $audioData = base64_decode($audioData);
+            $audioFileName = $word->word . '_recorded_' . $word->id . '.wav';
+            file_put_contents(public_path('audio/' . $audioFileName), $audioData);
             $word->update(['audio_path' => $audioFileName]);
         }
 
@@ -130,6 +139,7 @@ class WordController extends Controller
             'meaning' => 'nullable|string|max:255',
             'transliterations' => 'nullable|string',
             'audio_file' => 'nullable|mimes:mp3,wav,ogg|max:10240',
+            'recorded_audio_data' => 'nullable|string',
             'image_file' => 'nullable|image|max:5120',
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
@@ -162,6 +172,17 @@ class WordController extends Controller
             $extension = $audioFile->getClientOriginalExtension();
             $audioFileName = $originalName . '_' . $word->id . '.' . $extension;
             $audioFile->move(public_path('audio'), $audioFileName);
+            $word->update(['audio_path' => $audioFileName]);
+        } elseif ($request->filled('recorded_audio_data')) {
+            // Handle recorded audio
+            if ($word->audio_path && file_exists(public_path('audio/' . $word->audio_path))) {
+                unlink(public_path('audio/' . $word->audio_path));
+            }
+            $audioData = $request->input('recorded_audio_data');
+            $audioData = str_replace('data:audio/wav;base64,', '', $audioData);
+            $audioData = base64_decode($audioData);
+            $audioFileName = $word->word . '_recorded_' . $word->id . '.wav';
+            file_put_contents(public_path('audio/' . $audioFileName), $audioData);
             $word->update(['audio_path' => $audioFileName]);
         }
 

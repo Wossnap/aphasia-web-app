@@ -1,12 +1,13 @@
 @extends('admin.layout')
 
-@section('title', 'Add New Category')
-@section('header', 'Add New Category')
+@section('title', 'Edit Category')
+@section('header', 'Edit Category: ' . $category->name)
 
 @section('content')
     <div class="max-w-2xl mx-auto">
-        <form method="POST" action="{{ route('admin.categories.store') }}" class="space-y-6">
+        <form method="POST" action="{{ route('admin.categories.update', $category) }}" class="space-y-6">
             @csrf
+            @method('PUT')
 
             <div class="bg-white shadow rounded-lg">
                 <div class="px-4 py-5 sm:p-6">
@@ -16,7 +17,7 @@
                                                                                     <input type="text" name="name" id="name" required
                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                    style="border: 2px solid #9ca3af !important;"
-                                   value="{{ old('name') }}">
+                                   value="{{ old('name', $category->name) }}">
                             @error('name')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -26,7 +27,7 @@
                             <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
                             <textarea name="description" id="description" rows="3"
                                       class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                      style="border: 2px solid #9ca3af !important;">{{ old('description') }}</textarea>
+                                      style="border: 2px solid #9ca3af !important;">{{ old('description', $category->description) }}</textarea>
                             @error('description')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -42,7 +43,7 @@
                 </a>
                 <button type="submit"
                         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-                    Create Category
+                    Update Category
                 </button>
             </div>
         </form>

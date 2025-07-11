@@ -9,11 +9,11 @@
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-5 sm:p-6">
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Add Word to Category</h3>
-                
+
                 <form method="POST" action="{{ route('admin.categories.add-word', $category) }}" class="flex space-x-4">
                     @csrf
                     <div class="flex-1">
-                        <select name="word_id" required class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <select name="word_id" required class="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" style="border: 1px solid #d1d5db !important;">
                             <option value="">Select a word</option>
                             @foreach($availableWords as $word)
                                 <option value="{{ $word->id }}">{{ $word->word }} - {{ $word->meaning ?? 'No meaning' }}</option>
@@ -38,7 +38,7 @@
         <div class="bg-white shadow rounded-lg">
             <div class="px-4 py-5 sm:p-6">
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Words in {{ $category->name }}</h3>
-                
+
                 @if($categoryWords->count() > 0)
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
@@ -96,7 +96,7 @@
                                             <form method="POST" action="{{ route('admin.categories.remove-word', [$category, $word]) }}" class="inline">
                                                 @csrf
                                                 @method('DELETE')
-                                                <button type="submit" class="text-red-600 hover:text-red-900" 
+                                                <button type="submit" class="text-red-600 hover:text-red-900"
                                                         onclick="return confirm('Are you sure you want to remove this word from the category?')">
                                                     Remove
                                                 </button>
@@ -115,11 +115,11 @@
 
         <!-- Navigation -->
         <div class="flex justify-between">
-            <a href="{{ route('admin.categories.index') }}" 
+            <a href="{{ route('admin.categories.index') }}"
                class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium">
                 Back to Categories
             </a>
-            <a href="{{ route('admin.categories.show', $category) }}" 
+            <a href="{{ route('admin.categories.show', $category) }}"
                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
                 View Category Details
             </a>

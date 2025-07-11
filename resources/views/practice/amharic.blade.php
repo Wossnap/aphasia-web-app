@@ -1,5 +1,25 @@
 @extends('layouts.app')
 
+@section('head')
+    <!-- Add this meta tag to hint the browser to preload Amharic voices -->
+    <meta name="google" content="notranslate">
+    <html lang="am">
+
+    <!-- Categories data must load before the JavaScript -->
+    <script>
+        window.categoriesData = @json($categories);
+        console.log('Categories data loaded:', window.categoriesData);
+    </script>
+
+    <!-- Force voice download -->
+    <script>
+        window.addEventListener('load', function() {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.getVoices();
+            }
+        });
+    </script>
+@endsection
 
 @section('content')
 <div class="practice-container">
@@ -21,16 +41,42 @@
             </div>
             <div class="category-practice">
                 <h4>Category Practice</h4>
-                <div class="category-buttons">
-                    @foreach($categories as $category)
-                        <button class="category-btn" data-category="{{ $category->id }}">
-                            {{ $category->name }}
-                        </button>
-                    @endforeach
+
+                <!-- Category pagination controls -->
+                <div class="category-pagination">
+                    <button class="pagination-btn" id="categoryPrevBtn" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="page-indicator" id="categoryPageInfo">Page 1 of 1</div>
+                    <button class="pagination-btn" id="categoryNextBtn" disabled>
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
                 </div>
-                <div class="level-buttons" style="display: none;">
+
+                <!-- Category buttons container -->
+                <div class="category-buttons-container">
+                    <div class="category-buttons" id="categoryButtons">
+                        <!-- Categories will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Level selection -->
+                <div class="level-buttons" id="levelButtons" style="display: none;">
                     <h5>Select Level</h5>
-                    <div class="level-buttons-container">
+
+                    <!-- Level pagination controls -->
+                    <div class="level-pagination">
+                        <button class="pagination-btn" id="levelPrevBtn" disabled>
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div class="page-indicator" id="levelPageInfo">Page 1 of 1</div>
+                        <button class="pagination-btn" id="levelNextBtn" disabled>
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- Level buttons container -->
+                    <div class="level-buttons-container" id="levelButtonsContainer">
                         <!-- Levels will be added dynamically -->
                     </div>
                 </div>
@@ -89,18 +135,4 @@
         </div>
     </div>
 </div>
-@endsection
-
-@section('head')
-    <!-- Add this meta tag to hint the browser to preload Amharic voices -->
-    <meta name="google" content="notranslate">
-    <html lang="am">
-    <!-- Force voice download -->
-    <script>
-        window.addEventListener('load', function() {
-            if ('speechSynthesis' in window) {
-                speechSynthesis.getVoices();
-            }
-        });
-    </script>
 @endsection

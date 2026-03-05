@@ -196,8 +196,14 @@ class AmharicPractice {
                 console.log('Recognition started');
                 if (this.logSpeechEvent) this.logSpeechEvent('onstart', {});
                 const feedback = document.getElementById('speechFeedback');
+                // Mic is truly open - reveal full listening UI at once
+                feedback.classList.add('active');
                 feedback.classList.add('listening-active');
                 document.getElementById('spokenWord').textContent = '';
+                const statusEl = feedback.querySelector('.speech-status');
+                if (statusEl) statusEl.textContent = 'Listening...';
+                // Inject buttons that were prepared while mic was warming up
+                this.showListeningButtons();
             };
 
             this.recognition.onresult = (event) => {
@@ -395,9 +401,8 @@ class AmharicPractice {
 
             audio.onended = () => {
                 console.log('Audio playback ended');
+                // Prepare button container and start mic warm-up; UI stays unchanged until onstart
                 setTimeout(() => {
-                    speechFeedback.classList.add('active');
-                    // Show listening options for all devices after audio ends
                     this.showListeningOptions();
                 }, 500);
             };
@@ -463,11 +468,8 @@ class AmharicPractice {
         utterance.onend = () => {
             console.log('Speech ended:', wordToSpeak);
             this.isSpeaking = false;
+            // Prepare button container and start mic warm-up; UI stays unchanged until onstart
             setTimeout(() => {
-                // Show listening feedback after speech ends
-                document.getElementById('speechFeedback').classList.add('active');
-
-                // Show buttons for all devices
                 this.showListeningOptions();
             }, 1000);
         };
@@ -525,8 +527,6 @@ class AmharicPractice {
             this.isRecognitionActive = true;
             this.finalResultProcessed = false;
 
-            const feedback = document.getElementById('speechFeedback');
-            feedback.classList.add('listening-active');
             document.getElementById('spokenWord').textContent = '';
 
             setTimeout(() => {
@@ -804,15 +804,8 @@ class AmharicPractice {
             }, 1000);
         }
 
-        // Position in the speech feedback area
-        const speechFeedback = document.getElementById('speechFeedback');
-        speechFeedback.appendChild(buttonContainer);
-
-        // Update the status text
-        const statusElement = speechFeedback.querySelector('.speech-status');
-        if (statusElement) {
-            statusElement.textContent = this.mobileDevice ? 'Ready' : 'Listening...';
-        }
+        // Store the button container to be injected when the mic is actually ready
+        this._pendingButtonContainer = buttonContainer;
 
         // Add click event for listen again button with improved microphone handling
         listenAgainBtn.addEventListener('click', () => {
@@ -835,10 +828,9 @@ class AmharicPractice {
                 // Set up audio event handlers
                 audio.onended = () => {
                     console.log('Audio playback ended - restarting listening');
-                    // Wait a bit before restarting listening
+                    // Prepare button container and start mic warm-up; UI stays unchanged until onstart
                     setTimeout(() => {
-                        speechFeedback.classList.add('active');
-                        this.startListening();
+                        this.showListeningOptions();
                     }, 500);
                 };
 
@@ -859,6 +851,16 @@ class AmharicPractice {
                 this.useTextToSpeech();
             }
         });
+    }
+
+    showListeningButtons() {
+        if (!this._pendingButtonContainer) return;
+        const speechFeedback = document.getElementById('speechFeedback');
+        // Remove any previously appended container
+        const existing = speechFeedback.querySelector('.mobile-buttons-container');
+        if (existing) existing.remove();
+        speechFeedback.appendChild(this._pendingButtonContainer);
+        this._pendingButtonContainer = null;
     }
 
     testMicrophonePermission() {

@@ -223,37 +223,29 @@ body.practice-active {
 }
 
 .practice-container {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    min-height: 100vh;
     padding: 0;
     margin: 0;
-    overflow: hidden;
-    /* Make container fullscreen */
-    min-height: 100vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
+    position: relative;
+    background: var(--bg-primary);
 }
 
 /* Make practice settings fullscreen with no scrolling */
 .practice-settings {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    min-height: 100vh;
+    width: 100%;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     background: var(--bg-primary);
     z-index: 1000;
-    padding: 1rem;
+    padding: 2rem 1rem;
     box-sizing: border-box;
-    overflow-y: auto; /* Allow vertical scrolling if content overflows */
-    -webkit-overflow-scrolling: touch;
 }
 
 
@@ -1067,18 +1059,46 @@ body.practice-active {
 }
 
 @media (max-width: 767px) {
+    .practice-area {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+
     .practice-layout {
         grid-template-columns: 1fr;
-        gap: 1rem;
+        gap: 1.5rem;
+        padding: 1rem;
     }
 
     .word-gif-container, .word-image-container {
-        min-height: 250px;
+        min-height: 200px;
     }
 
     .gif-wrapper, .image-wrapper {
-        max-width: 300px;
-        height: 250px;
+        max-width: 100%;
+        height: 200px;
+    }
+
+    .word-header {
+        padding: 1.5rem;
+    }
+
+    .amharic-word {
+        font-size: 2.2rem;
+        word-break: break-word;
+    }
+    
+    .p-8 {
+        padding: 1.5rem !important;
+    }
+    
+    .button-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .next-word-btn, .stop-btn {
+        width: 100%;
     }
 }
 
@@ -1143,16 +1163,7 @@ body.practice-active {
     transition: opacity 0.3s ease;
 }
 
-@media (max-width: 767px) {
-    .word-image-container {
-        min-height: 250px;
-    }
 
-    .image-wrapper {
-        max-width: 300px;
-        height: 250px;
-    }
-}
 
 @media (min-width: 768px) {
     .practice-layout {

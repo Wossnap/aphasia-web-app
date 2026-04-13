@@ -756,7 +756,8 @@ class AmharicPractice {
                 this.validateSpokenWord(spokenWord);
             } else {
                 console.log('Empty result detected from Google Cloud');
-                this.showErrorFeedback();
+                document.getElementById('spokenWord').textContent = 'No sound detected. Try again!';
+                this.showListeningOptions();
             }
             
         } catch (error) {

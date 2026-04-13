@@ -37,7 +37,9 @@ class SpeechController extends Controller
         $transcript = $this->speechService->transcribe($audioBase64);
 
         if ($transcript === null) {
-            return response()->json(['error' => 'Transcription failed'], 500);
+            return response()->json([
+                'results' => []
+            ]);
         }
 
         // Return a similar structure to the original google API so JS doesn't have to change much, or just a simple string.

@@ -8,6 +8,9 @@
     <!-- Categories data must load before the JavaScript -->
     <script>
         window.categoriesData = @json($categories);
+        window.appConfig = {
+            speechDriver: "{{ $speechDriver ?? 'browser' }}"
+        };
         console.log('Categories data loaded:', window.categoriesData);
     </script>
 
@@ -35,6 +38,12 @@
                 <i class="fas fa-random"></i>
                 <span>Random Practice</span>
                 <div class="btn-description">Practice with random words from all categories</div>
+            </button>
+            
+            <button id="installAppBtn" class="install-app-btn" style="display: none;">
+                <i class="fas fa-download"></i>
+                <span>Install App</span>
+                <div class="btn-description">Install on your device for a better experience</div>
             </button>
             <div class="mode-divider">
                 <span>or</span>

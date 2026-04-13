@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\AmharicWordController;
+use App\Http\Controllers\SpeechController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\App;
@@ -16,6 +17,7 @@ Route::get('/', [AmharicWordController::class, 'practice'])->name('practice.amha
 Route::get('/api/random-amharic-word', [AmharicWordController::class, 'getRandomWord']);
 Route::get('/api/categories', [AmharicWordController::class, 'getCategories']);
 Route::get('/api/categories/{category}/levels', [AmharicWordController::class, 'getLevels']);
+Route::post('/api/transcribe', [SpeechController::class, 'transcribe'])->name('api.transcribe');
 
 Route::get('language/{locale}', function ($locale) {
     if (in_array($locale, config('app.available_locales', ['en']))) {

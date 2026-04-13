@@ -20,5 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->report(function (\Illuminate\Session\TokenMismatchException $e) {
+            \Illuminate\Support\Facades\Log::error('CSRF Token Mismatch Error', [
+                'url' => request()->fullUrl(),
+                'input' => request()->except(['password', '_token']),
+            ]);
+        });
     })->create();

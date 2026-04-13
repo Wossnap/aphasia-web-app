@@ -15,12 +15,27 @@ class AmharicPractice {
         this.voicesLoaded = false;
         this.mobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         this.mobileRecognitionDelay = this.mobileDevice ? 1000 : 100;
+        this.mobileRestartCount = 0;
+        this.persistentMicStream = null;
+
+        // Configuration
+        this.speechDriver = window.appConfig?.speechDriver || 'browser';
+        
+        // Google Cloud Mode Properties
+        this.mediaRecorder = null;
+        this.audioContext = null;
+        this.vadAnalyser = null;
+        this.vadAnimationFrame = null;
+        this.vadMaxTimeout = null;
+        this.audioChunks = [];
+        this.isGoogleRecording = false;
+        this.googleStoppedByUser = false;
 
         // Pagination state
         this.categories = [];
         this.currentCategoryPage = 0;
         this.currentLevelPage = 0;
-        this.itemsPerPage = 4; // Reduced number of items per page for better accessibility
+        this.itemsPerPage = 10; // Increased for better UX, fewer page turns
         this.currentLevels = [];
 
         // Initialize after DOM is ready
@@ -43,104 +58,55 @@ class AmharicPractice {
         this.testMicrophonePermission();
         this.initializeSettingsControls();
         this.initializePagination();
+        this.initializePWAInstall();
+    }
+
+    initializePWAInstall() {
+        this.deferredPrompt = null;
+        const installBtn = document.getElementById('installAppBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            this.deferredPrompt = e;
+            // Update UI to show the install button
+            if (installBtn) {
+                installBtn.style.display = 'flex';
+            }
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', () => {
+                if (!this.deferredPrompt) return;
+                
+                // Show the prompt
+                this.deferredPrompt.prompt();
+                
+                // Wait for the user to respond to the prompt
+                this.deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted the install prompt');
+                    } else {
+                        console.log('User dismissed the install prompt');
+                    }
+                    this.deferredPrompt = null;
+                    installBtn.style.display = 'none';
+                });
+            });
+        }
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('App was installed');
+            if (installBtn) {
+                installBtn.style.display = 'none';
+            }
+        });
     }
 
     setupMobileDebugger() {
-        if (!/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-            return;
-        }
-
-        const debugPanel = document.createElement('div');
-        debugPanel.id = 'mobile-debug-panel';
-        debugPanel.innerHTML = `
-            <div class="debug-header">
-                <span>Debug Console</span>
-                <button id="debug-toggle">Hide</button>
-                <button id="debug-clear">Clear</button>
-            </div>
-            <div id="debug-content"></div>
-        `;
-
-        debugPanel.style.cssText = `
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff00;
-            font-family: monospace;
-            font-size: 12px;
-            max-height: 40vh;
-            overflow-y: auto;
-            z-index: 9999;
-            padding: 5px;
-            border-top: 2px solid #444;
-        `;
-
-        document.body.appendChild(debugPanel);
-
-        const toggleBtn = document.getElementById('debug-toggle');
-        const content = document.getElementById('debug-content');
-        toggleBtn.addEventListener('click', () => {
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                toggleBtn.textContent = 'Hide';
-            } else {
-                content.style.display = 'none';
-                toggleBtn.textContent = 'Show';
-            }
-        });
-
-        document.getElementById('debug-clear').addEventListener('click', () => {
-            document.getElementById('debug-content').innerHTML = '';
-        });
-
-        const originalLog = console.log;
-        const originalError = console.error;
-        const originalWarn = console.warn;
-
-        console.log = function() {
-            originalLog.apply(console, arguments);
-
-            const msg = Array.from(arguments).map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : arg
-            ).join(' ');
-
-            appendToDebugPanel('LOG', msg);
-        };
-
-        console.error = function() {
-            originalError.apply(console, arguments);
-            const msg = Array.from(arguments).map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : arg
-            ).join(' ');
-            appendToDebugPanel('ERROR', msg, 'red');
-        };
-
-        console.warn = function() {
-            originalWarn.apply(console, arguments);
-            const msg = Array.from(arguments).map(arg =>
-                typeof arg === 'object' ? JSON.stringify(arg) : arg
-            ).join(' ');
-            appendToDebugPanel('WARN', msg, 'orange');
-        };
-
-        function appendToDebugPanel(level, msg, color = null) {
-            const content = document.getElementById('debug-content');
-            const entry = document.createElement('div');
-            entry.innerHTML = `<span style="color: ${color || '#00ff00'}">[${level}]</span> ${msg}`;
-            content.appendChild(entry);
-
-            content.scrollTop = content.scrollHeight;
-
-            while (content.children.length > 100) {
-                content.removeChild(content.firstChild);
-            }
-        }
-
-        this.logSpeechEvent = function(event, data) {
-            appendToDebugPanel('SPEECH', `${event}: ${JSON.stringify(data)}`, '#00ffff');
-        };
+        // Debug panel removed for production — use remote debugging instead
+        this.logSpeechEvent = null;
     }
 
     async initializeVoices() {
@@ -163,6 +129,11 @@ class AmharicPractice {
     }
 
     initializeSpeechRecognition() {
+        if (this.speechDriver === 'google') {
+            console.log('Using Google Cloud Speech API driver');
+            return;
+        }
+
         if ('webkitSpeechRecognition' in window) {
             console.log('Speech recognition is supported');
             this.recognition = new webkitSpeechRecognition();
@@ -267,7 +238,7 @@ class AmharicPractice {
                                 this.showListeningOptions();
                             }
                         }
-                    }, 300);
+                    }, this.mobileDevice ? 1000 : 300);
                     return;
                 }
 
@@ -394,6 +365,11 @@ class AmharicPractice {
         this.stopListening();
 
         if (this.currentWord.audio_path) {
+            // On mobile, open persistent mic before playing audio so indicator is solid
+            if (this.mobileDevice) {
+                await this.startPersistentMic();
+            }
+
             const audioPath = `/audio/${this.currentWord.audio_path}`;
             console.log('Playing audio from:', audioPath);
 
@@ -414,6 +390,10 @@ class AmharicPractice {
                 this.useTextToSpeech();
             }
         } else {
+            // On mobile, open persistent mic before TTS so indicator is solid
+            if (this.mobileDevice) {
+                await this.startPersistentMic();
+            }
             this.useTextToSpeech();
         }
     }
@@ -501,6 +481,11 @@ class AmharicPractice {
     }
 
     startListening() {
+        if (this.speechDriver === 'google') {
+            this.startGoogleListening();
+            return;
+        }
+
         if (!this.recognition) {
             console.error('Speech recognition not initialized');
             return;
@@ -525,6 +510,7 @@ class AmharicPractice {
             console.log('Starting recognition');
             this.isListening = true;
             this.isRecognitionActive = true;
+            this.mobileRestartCount = 0;
             this.finalResultProcessed = false;
 
             document.getElementById('spokenWord').textContent = '';
@@ -549,6 +535,11 @@ class AmharicPractice {
     }
 
     stopListening() {
+        if (this.speechDriver === 'google') {
+            this.stopGoogleListening();
+            return;
+        }
+
         if (this.recognition) {
             try {
                 this.isListening = false;
@@ -558,6 +549,220 @@ class AmharicPractice {
             } catch (error) {
                 console.error('Error stopping recognition:', error);
             }
+        }
+    }
+
+    async startGoogleListening() {
+        if (this.isGoogleRecording) return;
+        
+        try {
+            // Get microphone stream if not already persistent
+            if (!this.persistentMicStream) {
+                this.persistentMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+            
+            // Setup AudioContext for VAD
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = this.audioContext.createMediaStreamSource(this.persistentMicStream);
+            this.vadAnalyser = this.audioContext.createAnalyser();
+            this.vadAnalyser.minDecibels = -60;
+            this.vadAnalyser.smoothingTimeConstant = 0.8;
+            source.connect(this.vadAnalyser);
+            
+            // Setup MediaRecorder
+            this.audioChunks = [];
+            
+            // Prefer opus if supported by MediaRecorder
+            const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                ? { mimeType: 'audio/webm;codecs=opus' } 
+                : {};
+                
+            this.mediaRecorder = new MediaRecorder(this.persistentMicStream, options);
+            
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.audioChunks.push(event.data);
+                }
+            };
+            
+            this.mediaRecorder.onstop = () => {
+                this.processGoogleAudio();
+            };
+            
+            // UI Updates
+            this.isListening = true;
+            this.isRecognitionActive = true;
+            this.isGoogleRecording = true;
+            
+            const feedback = document.getElementById('speechFeedback');
+            feedback.classList.add('active', 'listening-active');
+            document.getElementById('spokenWord').textContent = '...';
+            
+            const statusEl = feedback.querySelector('.speech-status');
+            if (statusEl) statusEl.textContent = 'Listening...';
+            this.showListeningButtons();
+            
+            this.mediaRecorder.start();
+            this.monitorSilence();
+            
+            // Safety timeout (10 seconds max)
+            this.vadMaxTimeout = setTimeout(() => {
+                console.log('Max recording limit reached');
+                this.stopGoogleListening();
+            }, 10000);
+            
+        } catch (error) {
+            console.error('Error starting Google listening:', error);
+            this.isGoogleRecording = false;
+            this.showListeningOptions();
+        }
+    }
+    
+    monitorSilence() {
+        if (!this.isGoogleRecording || !this.vadAnalyser) return;
+        
+        const bufferLength = this.vadAnalyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        let silenceStart = null;
+        let hasSpoken = false;
+        const silenceThreshold = 15; // out of 255
+        const silenceDurationToStop = 1500; // 1.5 seconds of silence
+        
+        const checkVolume = () => {
+            if (!this.isGoogleRecording) return;
+            
+            this.vadAnalyser.getByteFrequencyData(dataArray);
+            
+            // Calculate RMS
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                sum += dataArray[i] * dataArray[i];
+            }
+            const rms = Math.sqrt(sum / bufferLength);
+            
+            if (rms > silenceThreshold) {
+                hasSpoken = true;
+                silenceStart = null; // Reset silence timer
+            } else if (hasSpoken) {
+                // If it's quiet and we have already spoken
+                if (silenceStart === null) {
+                    silenceStart = Date.now();
+                } else if (Date.now() - silenceStart > silenceDurationToStop) {
+                    console.log('Silence detected, stopping recording');
+                    this.stopGoogleListening();
+                    return; // Stop monitoring
+                }
+            }
+            
+            this.vadAnimationFrame = requestAnimationFrame(checkVolume);
+        };
+        
+        checkVolume();
+    }
+    
+    stopGoogleListening(byUser = false) {
+        if (!this.isGoogleRecording) return;
+        
+        this.isGoogleRecording = false;
+        this.googleStoppedByUser = byUser;
+        
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            this.mediaRecorder.stop();
+        }
+        
+        if (this.vadMaxTimeout) {
+            clearTimeout(this.vadMaxTimeout);
+            this.vadMaxTimeout = null;
+        }
+        
+        if (this.vadAnimationFrame) {
+            cancelAnimationFrame(this.vadAnimationFrame);
+            this.vadAnimationFrame = null;
+        }
+        
+        if (byUser) {
+            document.getElementById('spokenWord').textContent = '';
+            const feedback = document.getElementById('speechFeedback');
+            feedback.classList.remove('listening-active', 'active');
+            const statusEl = feedback.querySelector('.speech-status');
+            if (statusEl) statusEl.textContent = '';
+        } else {
+            document.getElementById('spokenWord').textContent = 'Processing...';
+            const feedback = document.getElementById('speechFeedback');
+            feedback.classList.remove('listening-active');
+            const statusEl = feedback.querySelector('.speech-status');
+            if (statusEl) statusEl.textContent = 'Processing...';
+        }
+    }
+    
+    async processGoogleAudio() {
+        // Don't process if user explicitly stopped
+        if (this.googleStoppedByUser) {
+            this.googleStoppedByUser = false;
+            this.isRecognitionActive = false;
+            return;
+        }
+        
+        if (this.audioChunks.length === 0) {
+            this.isRecognitionActive = false;
+            this.showListeningOptions();
+            return;
+        }
+        
+        const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', blob, 'recording.webm');
+        
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+            
+            // Always read body as text first so we can log the real error
+            const rawText = await response.text();
+            
+            if (!response.ok) {
+                console.error(`Transcription server error [HTTP ${response.status}]:`, rawText);
+                this.isRecognitionActive = false;
+                document.getElementById('spokenWord').textContent = `Server error ${response.status}`;
+                this.showListeningOptions();
+                return;
+            }
+            
+            let data;
+            try {
+                data = JSON.parse(rawText);
+            } catch (parseErr) {
+                console.error('Failed to parse transcription response as JSON:', rawText);
+                this.isRecognitionActive = false;
+                this.showListeningOptions();
+                return;
+            }
+            
+            this.isRecognitionActive = false;
+            
+            if (data.results && data.results.length > 0 && data.results[0].alternatives.length > 0) {
+                const spokenWord = data.results[0].alternatives[0].transcript.trim();
+                console.log('Google Cloud Final Result:', spokenWord);
+                document.getElementById('spokenWord').textContent = spokenWord;
+                this.validateSpokenWord(spokenWord);
+            } else {
+                console.log('Empty result detected from Google Cloud');
+                this.showErrorFeedback();
+            }
+            
+        } catch (error) {
+            console.error('Error sending audio to server:', error);
+            this.isRecognitionActive = false;
+            this.showListeningOptions();
         }
     }
 
@@ -772,37 +977,10 @@ class AmharicPractice {
         listenAgainBtn.innerHTML = '<i class="fas fa-volume-up"></i> Listen Again';
         buttonContainer.appendChild(listenAgainBtn);
 
-        // Create speak button for mobile devices
-        if (this.mobileDevice) {
-            const speakBtn = document.createElement('button');
-            speakBtn.className = 'manual-listen-btn';
-            speakBtn.innerHTML = '<i class="fas fa-microphone"></i> Speak';
-            buttonContainer.appendChild(speakBtn);
-
-            // Add click event for speak button
-            speakBtn.addEventListener('click', () => {
-                this.startListening();
-            });
-
-            // Only add note on mobile and on first appearance
-            if (!sessionStorage.getItem('instructionShown')) {
-                const noteElement = document.createElement('div');
-                noteElement.className = 'recognition-note';
-                noteElement.textContent = 'Speak clearly after tapping the microphone';
-
-                // Position in the speech feedback area
-                const speechFeedback = document.getElementById('speechFeedback');
-                speechFeedback.appendChild(noteElement);
-
-                // Mark that we've shown the instruction
-                sessionStorage.setItem('instructionShown', 'true');
-            }
-        } else {
-            // On desktop, start listening automatically after a short delay
-            setTimeout(() => {
-                this.startListening();
-            }, 1000);
-        }
+        // Auto-start listening for all devices after a short delay
+        setTimeout(() => {
+            this.startListening();
+        }, 1000);
 
         // Store the button container to be injected when the mic is actually ready
         this._pendingButtonContainer = buttonContainer;
@@ -876,6 +1054,26 @@ class AmharicPractice {
                 });
         } else {
             console.error('getUserMedia not supported on this device');
+        }
+    }
+
+    async startPersistentMic() {
+        // Only needed on mobile — keeps the green mic indicator solid
+        if (this.persistentMicStream) return;
+
+        try {
+            this.persistentMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('Persistent mic stream opened');
+        } catch (err) {
+            console.error('Failed to open persistent mic stream:', err);
+        }
+    }
+
+    stopPersistentMic() {
+        if (this.persistentMicStream) {
+            this.persistentMicStream.getTracks().forEach(track => track.stop());
+            this.persistentMicStream = null;
+            console.log('Persistent mic stream closed');
         }
     }
 
@@ -1088,6 +1286,7 @@ class AmharicPractice {
     stopPractice() {
         this.isStarted = false;
         this.stopListening();
+        this.stopPersistentMic();
         window.speechSynthesis.cancel();
 
         // Clear all feedback and state
@@ -1125,6 +1324,21 @@ class AmharicPractice {
                 console.log('Recognition abort error:', e);
             }
         }
+        
+        // Cleanup Google mode properties
+        if (this.vadMaxTimeout) {
+            clearTimeout(this.vadMaxTimeout);
+            this.vadMaxTimeout = null;
+        }
+        if (this.vadAnimationFrame) {
+            cancelAnimationFrame(this.vadAnimationFrame);
+            this.vadAnimationFrame = null;
+        }
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            this.audioContext.close();
+            this.audioContext = null;
+        }
+        this.isGoogleRecording = false;
     }
 
     updateButtonText() {
@@ -1297,14 +1511,14 @@ class AmharicPractice {
 }
 
 // Initialize the application when the DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     console.log('DOM loaded, initializing AmharicPractice...');
     window.amharicPractice = new AmharicPractice();
 });
 
 // Fallback for browsers that don't support DOMContentLoaded
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         if (!window.amharicPractice) {
             console.log('Fallback: Initializing AmharicPractice...');
             window.amharicPractice = new AmharicPractice();

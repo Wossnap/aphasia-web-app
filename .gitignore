@@ -23,4 +23,5 @@ yarn-error.log
 /.zed
 public/audio
 public/gifs
-public/images
+public/images/*
+!public/images/icons

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'google_speech' => [
+        'key' => env('GOOGLE_SPEECH_API_KEY'),
+        'driver' => env('SPEECH_DRIVER', 'google'),
+    ],
+
 ];

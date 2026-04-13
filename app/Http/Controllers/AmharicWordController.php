@@ -47,7 +47,9 @@ class AmharicWordController extends Controller
     public function practice()
     {
         $categories = Category::all();
-        return view('practice.amharic', compact('categories'));
+        return view('practice.amharic', compact('categories'))->with([
+            'speechDriver' => config('services.google_speech.driver', 'browser')
+        ]);
     }
 
     public function getCategories()
@@ -58,10 +60,17 @@ class AmharicWordController extends Controller
 
     public function getLevels($categoryId)
     {
-        $maxLevel = DB::table('category_word')
-            ->where('category_id', $categoryId)
-            ->max('level');
+        try {
+            $maxLevel = DB::table('category_word')
+                ->where('category_id', $categoryId)
+                ->max('level');
 
-        return response()->json(range(1, $maxLevel));
+            // Ensure maxLevel is at least 1 and cast to int to avoid PHP 8.1+ deprecation warnings in range()
+            $maxLevel = max(1, (int)$maxLevel);
+
+            return response()->json(range(1, $maxLevel));
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }

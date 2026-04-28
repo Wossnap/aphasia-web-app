@@ -50,6 +50,13 @@
                     </div>
 
                     <div>
+                        <dt class="text-sm font-medium text-gray-500">Order</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {{ $word->order ?? '—' }}
+                        </dd>
+                    </div>
+
+                    <div>
                         <dt class="text-sm font-medium text-gray-500">Created</dt>
                         <dd class="mt-1 text-sm text-gray-900">{{ $word->created_at->format('M j, Y g:i A') }}</dd>
                     </div>

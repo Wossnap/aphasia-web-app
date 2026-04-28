@@ -63,6 +63,7 @@ class WordController extends Controller
             'image_file' => 'nullable|image|max:5120',
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
+            'order' => 'nullable|integer|min:0',
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
@@ -80,6 +81,7 @@ class WordController extends Controller
             'meaning' => $validated['meaning'],
             'transliterations' => $transliterations,
             'show_in_random' => $request->has('show_in_random'),
+            'order' => $validated['order'] ?? null,
         ]);
 
         // Handle file uploads to public folder
@@ -153,6 +155,7 @@ class WordController extends Controller
             'image_file' => 'nullable|image|max:5120',
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
+            'order' => 'nullable|integer|min:0',
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
@@ -170,6 +173,7 @@ class WordController extends Controller
             'meaning' => $validated['meaning'],
             'transliterations' => $transliterations,
             'show_in_random' => $request->has('show_in_random'),
+            'order' => $validated['order'] ?? null,
         ]);
 
         // Handle file uploads and deletions in public folder

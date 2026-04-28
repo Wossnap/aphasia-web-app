@@ -32,22 +32,49 @@ class AmharicWordController extends Controller
             if ($lastId) {
                 $lastWord = AmharicWord::find($lastId);
                 if ($lastWord) {
+                    $lastOrder = $lastWord->order;
+                    $lastCreated = $lastWord->created_at;
+
                     $next = (clone $query)
-                        ->where('created_at', '>', $lastWord->created_at)
+                        ->where(function($q) use ($lastOrder, $lastCreated) {
+                            if ($lastOrder !== null) {
+                                // Next word with higher order, OR same order but later created_at, OR no order (nulls come after ordered)
+                                $q->where('order', '>', $lastOrder)
+                                  ->orWhere(function($q2) use ($lastOrder, $lastCreated) {
+                                      $q2->where('order', $lastOrder)->where('created_at', '>', $lastCreated);
+                                  })
+                                  ->orWhereNull('order');
+                            } else {
+                                $q->where('created_at', '>', $lastCreated)->whereNull('order');
+                            }
+                        })
+                        ->orderByRaw('CASE WHEN `order` IS NULL THEN 1 ELSE 0 END')
+                        ->orderBy('order', 'asc')
                         ->orderBy('created_at', 'asc')
                         ->first();
 
-                    // Wrap around to the beginning when we reach the end
                     if (!$next) {
-                        $next = (clone $query)->orderBy('created_at', 'asc')->first();
+                        $next = (clone $query)
+                            ->orderByRaw('CASE WHEN `order` IS NULL THEN 1 ELSE 0 END')
+                            ->orderBy('order', 'asc')
+                            ->orderBy('created_at', 'asc')
+                            ->first();
                     }
 
                     $word = $next;
                 } else {
-                    $word = $query->orderBy('created_at', 'asc')->first();
+                    $word = $query
+                        ->orderByRaw('CASE WHEN `order` IS NULL THEN 1 ELSE 0 END')
+                        ->orderBy('order', 'asc')
+                        ->orderBy('created_at', 'asc')
+                        ->first();
                 }
             } else {
-                $word = $query->orderBy('created_at', 'asc')->first();
+                $word = $query
+                    ->orderByRaw('CASE WHEN `order` IS NULL THEN 1 ELSE 0 END')
+                    ->orderBy('order', 'asc')
+                    ->orderBy('created_at', 'asc')
+                    ->first();
             }
         } else {
             $word = $query->inRandomOrder()->first();

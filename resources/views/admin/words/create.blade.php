@@ -69,6 +69,19 @@
                                 </label>
                             </div>
                         </div>
+
+                        <div>
+                            <label for="order" class="block text-sm font-medium text-gray-700">Order</label>
+                            <input type="number" name="order" id="order" min="0"
+                                   class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                   style="border: 1px solid #d1d5db !important;"
+                                   value="{{ old('order') }}"
+                                   placeholder="Leave blank for no order">
+                            <p class="mt-1 text-sm text-gray-500">Optional. Words are played in ascending order (nulls last), then by date.</p>
+                            @error('order')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
             </div>

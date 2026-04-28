@@ -13,7 +13,8 @@ class AmharicWord extends Model
         'audio_path',
         'gif_path',
         'show_in_random',
-        'image_path'
+        'image_path',
+        'order'
     ];
 
     protected $casts = [

@@ -36,7 +36,7 @@ class AmharicPractice {
         this.categories = [];
         this.currentCategoryPage = 0;
         this.currentLevelPage = 0;
-        this.itemsPerPage = 10; // Increased for better UX, fewer page turns
+        this.itemsPerPage = 6; // Reduced to prevent vertical overflow without scrolling
         this.currentLevels = [];
 
         // Initialize after DOM is ready

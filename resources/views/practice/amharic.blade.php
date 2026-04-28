@@ -35,7 +35,7 @@
         <h3>Practice Settings</h3>
 
         <!-- Mode Toggle -->
-        <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: center; margin-bottom: 0.75rem;">
             <div id="modeToggle" style="display: inline-flex; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 4px; gap: 4px;">
                 <button id="modeRandomBtn" onclick="setPracticeMode('random')"
                         style="padding: 6px 20px; border-radius: 999px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; background: white; color: #4f46e5; transition: all 0.2s;">

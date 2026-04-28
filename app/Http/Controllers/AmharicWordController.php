@@ -24,14 +24,39 @@ class AmharicWordController extends Controller
             $query->where('show_in_random', true);
         }
 
-        $word = $query->inRandomOrder()->first();
+        $mode = $request->input('mode', 'random');
 
-        // Return null if no word is found
+        if ($mode === 'consecutive') {
+            $lastId = $request->input('last_id');
+
+            if ($lastId) {
+                $lastWord = AmharicWord::find($lastId);
+                if ($lastWord) {
+                    $next = (clone $query)
+                        ->where('created_at', '>', $lastWord->created_at)
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+
+                    // Wrap around to the beginning when we reach the end
+                    if (!$next) {
+                        $next = (clone $query)->orderBy('created_at', 'asc')->first();
+                    }
+
+                    $word = $next;
+                } else {
+                    $word = $query->orderBy('created_at', 'asc')->first();
+                }
+            } else {
+                $word = $query->orderBy('created_at', 'asc')->first();
+            }
+        } else {
+            $word = $query->inRandomOrder()->first();
+        }
+
         if (!$word) {
             return response()->json(null);
         }
 
-        // Return all necessary word data with full asset paths from public folder
         return response()->json([
             'id' => $word->id,
             'word' => $word->word,

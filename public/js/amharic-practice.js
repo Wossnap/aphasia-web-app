@@ -8,6 +8,7 @@ class AmharicPractice {
         this.currentWord = null;
         this.currentCategory = null;
         this.currentLevel = null;
+        this.practiceMode = 'random';
         this.isStarted = false;
         this.isSpeaking = false;
         this.pageVisible = true;
@@ -302,6 +303,10 @@ class AmharicPractice {
             const params = new URLSearchParams();
             if (this.currentCategory) params.append('category_id', this.currentCategory);
             if (this.currentLevel) params.append('level', this.currentLevel);
+            params.append('mode', this.practiceMode);
+            if (this.practiceMode === 'consecutive' && this.currentWord) {
+                params.append('last_id', this.currentWord.id);
+            }
 
             // Stop current activities
             this.stopListening();
@@ -1530,5 +1535,27 @@ if (document.readyState === 'loading') {
     if (!window.amharicPractice) {
         console.log('DOM already loaded, initializing AmharicPractice...');
         window.amharicPractice = new AmharicPractice();
+    }
+}
+
+
+function setPracticeMode(mode) {
+    if (window.amharicPractice) {
+        window.amharicPractice.practiceMode = mode;
+    }
+
+    const randomBtn = document.getElementById('modeRandomBtn');
+    const consecutiveBtn = document.getElementById('modeConsecutiveBtn');
+
+    if (mode === 'random') {
+        randomBtn.style.background = 'white';
+        randomBtn.style.color = '#4f46e5';
+        consecutiveBtn.style.background = 'transparent';
+        consecutiveBtn.style.color = 'rgba(255,255,255,0.8)';
+    } else {
+        consecutiveBtn.style.background = 'white';
+        consecutiveBtn.style.color = '#4f46e5';
+        randomBtn.style.background = 'transparent';
+        randomBtn.style.color = 'rgba(255,255,255,0.8)';
     }
 }

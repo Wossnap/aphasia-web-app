@@ -33,6 +33,21 @@
 
     <div class="practice-settings" id="practiceSettings">
         <h3>Practice Settings</h3>
+
+        <!-- Mode Toggle -->
+        <div style="display: flex; justify-content: center; margin-bottom: 1.5rem;">
+            <div id="modeToggle" style="display: inline-flex; background: rgba(255,255,255,0.15); border-radius: 999px; padding: 4px; gap: 4px;">
+                <button id="modeRandomBtn" onclick="setPracticeMode('random')"
+                        style="padding: 6px 20px; border-radius: 999px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; background: white; color: #4f46e5; transition: all 0.2s;">
+                    Random
+                </button>
+                <button id="modeConsecutiveBtn" onclick="setPracticeMode('consecutive')"
+                        style="padding: 6px 20px; border-radius: 999px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; background: transparent; color: rgba(255,255,255,0.8); transition: all 0.2s;">
+                    Consecutive
+                </button>
+            </div>
+        </div>
+
         <div class="practice-modes">
             <button id="randomPracticeBtn" class="random-practice-btn">
                 <i class="fas fa-random"></i>

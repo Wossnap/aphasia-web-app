@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Admin\WordController;
+use Wossnap\AmharicTransliteration\Facades\AmharicTransliteration;
 use App\Http\Controllers\Admin\CategoryController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -37,6 +38,27 @@ Route::middleware(['web', 'admin'])->group(function () {
     // Admin Dashboard
     Route::get('/dashboard', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
+
+    // Transliteration API
+    Route::get('words/transliterate', function (Illuminate\Http\Request $request) {
+        $word = $request->input('word', '');
+        if (!$word) {
+            return response()->json(['transliteration' => '']);
+        }
+        return response()->json([
+            'transliteration' => AmharicTransliteration::transliterate($word),
+        ]);
+    })->name('admin.words.transliterate');
+
+    Route::get('words/variants', function (Illuminate\Http\Request $request) {
+        $word = $request->input('word', '');
+        if (!$word) {
+            return response()->json(['variants' => []]);
+        }
+        return response()->json([
+            'variants' => AmharicTransliteration::getAmharicVariants($word),
+        ]);
+    })->name('admin.words.variants');
 
     // Words Management
     Route::resource('words', WordController::class)->names([

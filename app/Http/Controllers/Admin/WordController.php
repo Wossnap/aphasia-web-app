@@ -7,6 +7,7 @@ use App\Models\AmharicWord;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Wossnap\AmharicTransliteration\Facades\AmharicTransliteration;
 
 class WordController extends Controller
 {
@@ -17,10 +18,12 @@ class WordController extends Controller
 
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $transliterated = AmharicTransliteration::transliterate($search);
+            $query->where(function($q) use ($search, $transliterated) {
                 $q->where('word', 'like', "%{$search}%")
                   ->orWhere('meaning', 'like', "%{$search}%")
-                  ->orWhereJsonContains('transliterations', $search);
+                  ->orWhereJsonContains('transliterations', $search)
+                  ->orWhereJsonContains('transliterations', $transliterated);
             });
         }
 

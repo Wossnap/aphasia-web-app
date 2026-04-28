@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e08334651ce0b12e409af9e125ee397d",
+    "content-hash": "4ac6644ab4d4690c2bda242eb5f1b7e4",
     "packages": [
         {
             "name": "brick/math",
@@ -5797,6 +5797,64 @@
                 "source": "https://github.com/webmozarts/assert/tree/1.11.0"
             },
             "time": "2022-06-03T18:03:27+00:00"
+        },
+        {
+            "name": "wossnap/amharic-transliteration",
+            "version": "v1.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Wossnap/amharic-transliteration.git",
+                "reference": "6a2dbbe0a37de2f310e8b923d13fc33760781027"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Wossnap/amharic-transliteration/zipball/6a2dbbe0a37de2f310e8b923d13fc33760781027",
+                "reference": "6a2dbbe0a37de2f310e8b923d13fc33760781027",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.1|^8.2|^8.3|^8.4"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "aliases": {
+                        "AmharicTransliteration": "Wossnap\\AmharicTransliteration\\Facades\\AmharicTransliteration"
+                    },
+                    "providers": [
+                        "Wossnap\\AmharicTransliteration\\AmharicTransliterationServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Wossnap\\AmharicTransliteration\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Wossnap",
+                    "email": "wosstem2@gmail.com"
+                }
+            ],
+            "description": "Laravel package for transliterating Amharic (Ethiopic) text to Latin and handling phonetically equivalent character variants.",
+            "keywords": [
+                "Amharic",
+                "ethiopian",
+                "ethiopic",
+                "laravel",
+                "transliteration"
+            ],
+            "support": {
+                "issues": "https://github.com/Wossnap/amharic-transliteration/issues",
+                "source": "https://github.com/Wossnap/amharic-transliteration/tree/v1.0.0"
+            },
+            "time": "2026-04-28T15:14:53+00:00"
         }
     ],
     "packages-dev": [
@@ -9015,12 +9073,12 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
         "php": "^8.2"
     },
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform-dev": {},
+    "plugin-api-version": "2.6.0"
 }

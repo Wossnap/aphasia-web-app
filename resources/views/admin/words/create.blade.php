@@ -37,18 +37,30 @@
                         </div>
 
                         <div class="sm:col-span-2">
-                            <label for="transliterations-input" class="block text-sm font-medium text-gray-700">Transliterations</label>
-                                                        <div class="mt-1">
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="transliterations-input" class="block text-sm font-medium text-gray-700">Transliterations</label>
+                                <div class="flex gap-2">
+                                    <button type="button" id="generate-transliteration-btn"
+                                            class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md">
+                                        Generate Latin
+                                    </button>
+                                    <button type="button" id="generate-variants-btn"
+                                            class="text-sm bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-md">
+                                        Amharic variants
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-1">
                                 <div id="transliterations-container" class="min-h-[40px] border border-gray-300 rounded-md p-2 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white" style="border: 1px solid #d1d5db !important;">
                                     <!-- Pills will appear here -->
                                 </div>
-                                                                <input type="text" id="transliterations-input"
+                                <input type="text" id="transliterations-input"
                                        class="mt-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                        style="border: 1px solid #d1d5db !important;"
                                        placeholder="Type a transliteration and press Enter or Tab">
                                 <input type="hidden" name="transliterations" id="transliterations-hidden" value="">
                             </div>
-                            <p class="mt-1 text-sm text-gray-500">Type different pronunciations and press Enter or Tab to add them as pills</p>
+                            <p class="mt-1 text-sm text-gray-500">Type a pronunciation and press Enter, or click "Generate from word" to auto-fill.</p>
                             @error('transliterations')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -166,6 +178,61 @@
 
 @push('scripts')
 <script>
+// ===== GENERATE TRANSLITERATION FROM WORD =====
+document.addEventListener('DOMContentLoaded', function() {
+    const generateBtn = document.getElementById('generate-transliteration-btn');
+    if (!generateBtn) return;
+
+    generateBtn.addEventListener('click', function() {
+        const word = document.getElementById('word').value.trim();
+        if (!word) {
+            alert('Please enter an Amharic word first.');
+            return;
+        }
+
+        generateBtn.disabled = true;
+        generateBtn.textContent = 'Generating...';
+
+        fetch(`{{ route('admin.words.transliterate') }}?word=${encodeURIComponent(word)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.transliteration) {
+                    addPill(data.transliteration);
+                }
+            })
+            .finally(() => {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generate Latin';
+            });
+    });
+
+    const variantsBtn = document.getElementById('generate-variants-btn');
+    if (variantsBtn) {
+        variantsBtn.addEventListener('click', function() {
+            const word = document.getElementById('word').value.trim();
+            if (!word) {
+                alert('Please enter an Amharic word first.');
+                return;
+            }
+
+            variantsBtn.disabled = true;
+            variantsBtn.textContent = 'Generating...';
+
+            fetch(`{{ route('admin.words.variants') }}?word=${encodeURIComponent(word)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.variants && data.variants.length) {
+                        data.variants.forEach(v => addPill(v));
+                    }
+                })
+                .finally(() => {
+                    variantsBtn.disabled = false;
+                    variantsBtn.textContent = 'Amharic variants';
+                });
+        });
+    }
+});
+
 // ===== TRANSLITERATIONS PILLS FUNCTIONALITY =====
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Transliterations script loaded');

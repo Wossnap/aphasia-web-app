@@ -48,7 +48,7 @@
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">Word</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="max-width: 200px;">Word</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meaning</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
@@ -60,10 +60,12 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($words as $word)
                         <tr>
-                            <td class="px-6 py-4 w-48">
+                            <td class="px-6 py-4" style="max-width: 200px;">
                                 <div class="text-sm font-medium text-gray-900">{{ $word->word }}</div>
                                 @if($word->transliterations)
-                                    <div class="text-sm text-gray-500 max-w-[180px] truncate" title="{{ implode(', ', $word->transliterations) }}">
+                                    <div class="text-sm text-gray-500"
+                                         style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                                         title="{{ implode(', ', $word->transliterations) }}">
                                         {{ implode(', ', $word->transliterations) }}
                                     </div>
                                 @endif

@@ -5800,16 +5800,16 @@
         },
         {
             "name": "wossnap/amharic-transliteration",
-            "version": "v1.0.0",
+            "version": "v1.0.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Wossnap/amharic-transliteration.git",
-                "reference": "6a2dbbe0a37de2f310e8b923d13fc33760781027"
+                "reference": "b3615df1c666132b468985c44dddc943f9428c1e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Wossnap/amharic-transliteration/zipball/6a2dbbe0a37de2f310e8b923d13fc33760781027",
-                "reference": "6a2dbbe0a37de2f310e8b923d13fc33760781027",
+                "url": "https://api.github.com/repos/Wossnap/amharic-transliteration/zipball/b3615df1c666132b468985c44dddc943f9428c1e",
+                "reference": "b3615df1c666132b468985c44dddc943f9428c1e",
                 "shasum": ""
             },
             "require": {
@@ -5852,9 +5852,9 @@
             ],
             "support": {
                 "issues": "https://github.com/Wossnap/amharic-transliteration/issues",
-                "source": "https://github.com/Wossnap/amharic-transliteration/tree/v1.0.0"
+                "source": "https://github.com/Wossnap/amharic-transliteration/tree/v1.0.1"
             },
-            "time": "2026-04-28T15:14:53+00:00"
+            "time": "2026-04-28T16:12:20+00:00"
         }
     ],
     "packages-dev": [

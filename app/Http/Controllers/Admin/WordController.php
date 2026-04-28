@@ -24,12 +24,12 @@ class WordController extends Controller
             $query->where(function($q) use ($search, $transliterated, $variants) {
                 $q->where('word', 'like', "%{$search}%")
                   ->orWhere('meaning', 'like', "%{$search}%")
-                  ->orWhereJsonContains('transliterations', $search)
-                  ->orWhereJsonContains('transliterations', $transliterated);
+                  ->orWhere('transliterations', 'like', "%{$search}%")
+                  ->orWhere('transliterations', 'like', "%{$transliterated}%");
 
                 foreach ($variants as $variant) {
                     $q->orWhere('word', 'like', "%{$variant}%")
-                      ->orWhereJsonContains('transliterations', $variant);
+                      ->orWhere('transliterations', 'like', "%{$variant}%");
                 }
             });
         }

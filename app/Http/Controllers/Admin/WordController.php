@@ -19,11 +19,18 @@ class WordController extends Controller
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $transliterated = AmharicTransliteration::transliterate($search);
-            $query->where(function($q) use ($search, $transliterated) {
+            $variants = AmharicTransliteration::getAmharicVariants($search);
+
+            $query->where(function($q) use ($search, $transliterated, $variants) {
                 $q->where('word', 'like', "%{$search}%")
                   ->orWhere('meaning', 'like', "%{$search}%")
                   ->orWhereJsonContains('transliterations', $search)
                   ->orWhereJsonContains('transliterations', $transliterated);
+
+                foreach ($variants as $variant) {
+                    $q->orWhere('word', 'like', "%{$variant}%")
+                      ->orWhereJsonContains('transliterations', $variant);
+                }
             });
         }
 

@@ -39,16 +39,10 @@
                         <div class="sm:col-span-2">
                             <div class="flex items-center justify-between mb-1">
                                 <label for="transliterations-input" class="block text-sm font-medium text-gray-700">Transliterations</label>
-                                <div class="flex gap-2">
-                                    <button type="button" id="generate-transliteration-btn"
-                                            class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md">
-                                        Generate Latin
-                                    </button>
-                                    <button type="button" id="generate-variants-btn"
-                                            class="text-sm bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-md">
-                                        Amharic variants
-                                    </button>
-                                </div>
+                                <button type="button" id="autofill-transliterations-btn"
+                                        class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md">
+                                    Fill automatically
+                                </button>
                             </div>
                             <div class="mt-1">
                                 <div id="transliterations-container" class="min-h-[40px] border border-gray-300 rounded-md p-2 flex flex-wrap gap-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white" style="border: 1px solid #d1d5db !important;">
@@ -178,59 +172,33 @@
 
 @push('scripts')
 <script>
-// ===== GENERATE TRANSLITERATION FROM WORD =====
+// ===== AUTOFILL TRANSLITERATIONS =====
 document.addEventListener('DOMContentLoaded', function() {
-    const generateBtn = document.getElementById('generate-transliteration-btn');
-    if (!generateBtn) return;
+    const btn = document.getElementById('autofill-transliterations-btn');
+    if (!btn) return;
 
-    generateBtn.addEventListener('click', function() {
+    btn.addEventListener('click', function() {
         const word = document.getElementById('word').value.trim();
         if (!word) {
             alert('Please enter an Amharic word first.');
             return;
         }
 
-        generateBtn.disabled = true;
-        generateBtn.textContent = 'Generating...';
+        btn.disabled = true;
+        btn.textContent = 'Filling...';
 
-        fetch(`{{ route('admin.words.transliterate') }}?word=${encodeURIComponent(word)}`)
+        fetch(`{{ route('admin.words.autofill-transliterations') }}?word=${encodeURIComponent(word)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.transliteration) {
-                    addPill(data.transliteration);
+                if (data.pills && data.pills.length) {
+                    data.pills.forEach(p => addPill(p));
                 }
             })
             .finally(() => {
-                generateBtn.disabled = false;
-                generateBtn.textContent = 'Generate Latin';
+                btn.disabled = false;
+                btn.textContent = 'Fill automatically';
             });
     });
-
-    const variantsBtn = document.getElementById('generate-variants-btn');
-    if (variantsBtn) {
-        variantsBtn.addEventListener('click', function() {
-            const word = document.getElementById('word').value.trim();
-            if (!word) {
-                alert('Please enter an Amharic word first.');
-                return;
-            }
-
-            variantsBtn.disabled = true;
-            variantsBtn.textContent = 'Generating...';
-
-            fetch(`{{ route('admin.words.variants') }}?word=${encodeURIComponent(word)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.variants && data.variants.length) {
-                        data.variants.forEach(v => addPill(v));
-                    }
-                })
-                .finally(() => {
-                    variantsBtn.disabled = false;
-                    variantsBtn.textContent = 'Amharic variants';
-                });
-        });
-    }
 });
 
 // ===== TRANSLITERATIONS PILLS FUNCTIONALITY =====

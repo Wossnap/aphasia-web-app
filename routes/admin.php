@@ -40,25 +40,17 @@ Route::middleware(['web', 'admin'])->group(function () {
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     // Transliteration API
-    Route::get('words/transliterate', function (Illuminate\Http\Request $request) {
+    Route::get('words/autofill-transliterations', function (Illuminate\Http\Request $request) {
         $word = $request->input('word', '');
         if (!$word) {
-            return response()->json(['transliteration' => '']);
+            return response()->json(['pills' => []]);
         }
-        return response()->json([
-            'transliteration' => AmharicTransliteration::transliterate($word),
-        ]);
-    })->name('admin.words.transliterate');
-
-    Route::get('words/variants', function (Illuminate\Http\Request $request) {
-        $word = $request->input('word', '');
-        if (!$word) {
-            return response()->json(['variants' => []]);
-        }
-        return response()->json([
-            'variants' => AmharicTransliteration::getAmharicVariants($word),
-        ]);
-    })->name('admin.words.variants');
+        $pills = array_values(array_unique(array_merge(
+            [AmharicTransliteration::transliterate($word)],
+            AmharicTransliteration::getAmharicVariants($word)
+        )));
+        return response()->json(['pills' => $pills]);
+    })->name('admin.words.autofill-transliterations');
 
     // Words Management
     Route::resource('words', WordController::class)->names([

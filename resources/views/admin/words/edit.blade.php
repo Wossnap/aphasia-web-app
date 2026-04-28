@@ -40,7 +40,7 @@
                             <div class="flex items-center justify-between mb-1">
                                 <label for="transliterations-input" class="block text-sm font-medium text-gray-700">Transliterations</label>
                                 <button type="button" id="autofill-transliterations-btn"
-                                        class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-md">
+                                        class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md">
                                     Fill automatically
                                 </button>
                             </div>

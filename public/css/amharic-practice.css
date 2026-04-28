@@ -446,11 +446,9 @@ body.practice-active {
 
 /* Category buttons container - fixed height, no scrolling */
 .category-buttons-container {
-    flex: 1;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
-    justify-content: center;
 }
 
 .category-buttons {

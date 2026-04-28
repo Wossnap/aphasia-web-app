@@ -218,38 +218,8 @@
 
 @push('scripts')
 <script>
-// ===== AUTOFILL TRANSLITERATIONS =====
+// ===== TRANSLITERATIONS PILLS + AUTOFILL =====
 document.addEventListener('DOMContentLoaded', function() {
-    const btn = document.getElementById('autofill-transliterations-btn');
-    if (!btn) return;
-
-    btn.addEventListener('click', function() {
-        const word = document.getElementById('word').value.trim();
-        if (!word) {
-            alert('Please enter an Amharic word first.');
-            return;
-        }
-
-        btn.disabled = true;
-        btn.textContent = 'Filling...';
-
-        fetch(`{{ route('admin.words.autofill-transliterations') }}?word=${encodeURIComponent(word)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.pills && data.pills.length) {
-                    data.pills.forEach(p => addPill(p));
-                }
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.textContent = 'Fill automatically';
-            });
-    });
-});
-
-// ===== TRANSLITERATIONS PILLS FUNCTIONALITY =====
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Transliterations script loaded');
     const input = document.getElementById('transliterations-input');
     const container = document.getElementById('transliterations-container');
     const hiddenInput = document.getElementById('transliterations-hidden');
@@ -276,21 +246,17 @@ document.addEventListener('DOMContentLoaded', function() {
         hiddenInput.value = pills.join(',');
     }
 
-        function createPill(text) {
+    function createPill(text) {
         const pill = document.createElement('span');
         pill.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200';
         pill.innerHTML = `
             <span class="mr-2">${text}</span>
             <button type="button" class="ml-1 text-blue-600 hover:text-red-600 font-bold text-lg leading-none remove-pill-btn" style="background: none; border: none; cursor: pointer;">&times;</button>
         `;
-
-        // Add event listener to remove button
-        const removeBtn = pill.querySelector('.remove-pill-btn');
-        removeBtn.addEventListener('click', function(e) {
+        pill.querySelector('.remove-pill-btn').addEventListener('click', function(e) {
             e.preventDefault();
             removePill(pill, text);
         });
-
         return pill;
     }
 
@@ -323,6 +289,31 @@ document.addEventListener('DOMContentLoaded', function() {
             input.value = '';
         }
     });
+
+    // Autofill button
+    const btn = document.getElementById('autofill-transliterations-btn');
+    if (btn) {
+        btn.addEventListener('click', function() {
+            const word = document.getElementById('word').value.trim();
+            if (!word) {
+                alert('Please enter an Amharic word first.');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Filling...';
+            fetch(`{{ route('admin.words.autofill-transliterations') }}?word=${encodeURIComponent(word)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.pills && data.pills.length) {
+                        data.pills.forEach(p => addPill(p));
+                    }
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = 'Fill automatically';
+                });
+        });
+    }
 });
 
 // ===== VOICE RECORDING FUNCTIONALITY =====

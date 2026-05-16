@@ -6,6 +6,7 @@ use App\Models\AmharicWord;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class AmharicWordController extends Controller
 {
@@ -90,7 +91,7 @@ class AmharicWordController extends Controller
             'transliterations' => $word->transliterations,
             'meaning' => $word->meaning,
             'audio_path' => $word->audio_path,
-            'gif_path' => $word->gif_path,
+            'gif_path'   => $word->gif_path,
             'image_path' => $word->image_path,
             'show_in_random' => $word->show_in_random
         ]);
@@ -98,9 +99,17 @@ class AmharicWordController extends Controller
 
     public function practice()
     {
-        $categories = Category::all();
-        return view('practice.amharic', compact('categories'))->with([
-            'speechDriver' => config('services.google_speech.driver', 'browser')
+        $categories = Category::all()->map(fn($c) => ['id' => $c->id, 'name' => $c->name]);
+
+        return Inertia::render('Practice', [
+            'categories'   => $categories,
+            'speechDriver' => config('services.google_speech.driver', 'browser'),
+            'translations' => [
+                'next_word' => __('app.next_word'),
+                'excellent' => __('app.excellent'),
+                'you_said'  => __('app.you_said'),
+                'try_again' => __('app.try_again'),
+            ],
         ]);
     }
 

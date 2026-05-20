@@ -131,27 +131,52 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     function monitorSilence() {
         if (!googleRecording || !vadAnalyser) return;
         const buf = new Uint8Array(vadAnalyser.frequencyBinCount);
-        let silenceStart = null;
-        let hasSpoken    = false;
 
-        const check = () => {
-            if (!googleRecording) return;
+        function getRms() {
             vadAnalyser.getByteFrequencyData(buf);
-            const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+            return Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+        }
 
-            if (rms > 15) {
-                hasSpoken    = true;
-                silenceStart = null;
-            } else if (hasSpoken) {
-                silenceStart ??= Date.now();
-                if (Date.now() - silenceStart > 1500) {
-                    stopGoogleListening();
-                    return;
-                }
+        // Sample ambient noise for 300ms to set a device-specific threshold
+        const calibrationSamples = [];
+        const calibrationStart = Date.now();
+
+        const calibrate = () => {
+            if (!googleRecording) return;
+            calibrationSamples.push(getRms());
+            if (Date.now() - calibrationStart < 300) {
+                requestAnimationFrame(calibrate);
+            } else {
+                const ambientRms = calibrationSamples.reduce((a, b) => a + b, 0) / calibrationSamples.length;
+                // Speech threshold: at least 1.8x above ambient, minimum of 8
+                const speechThreshold = Math.max(8, ambientRms * 1.8);
+                startVad(speechThreshold);
             }
-            vadFrame = requestAnimationFrame(check);
         };
-        check();
+        calibrate();
+
+        function startVad(threshold) {
+            let silenceStart = null;
+            let hasSpoken    = false;
+
+            const check = () => {
+                if (!googleRecording) return;
+                const rms = getRms();
+
+                if (rms > threshold) {
+                    hasSpoken    = true;
+                    silenceStart = null;
+                } else if (hasSpoken) {
+                    silenceStart ??= Date.now();
+                    if (Date.now() - silenceStart > 1500) {
+                        stopGoogleListening();
+                        return;
+                    }
+                }
+                vadFrame = requestAnimationFrame(check);
+            };
+            check();
+        }
     }
 
     function stopGoogleListening(byUser = false) {

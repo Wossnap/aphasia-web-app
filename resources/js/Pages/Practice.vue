@@ -253,6 +253,8 @@ async function launchPractice() {
 // ─── Word loading ─────────────────────────────────────────────────────────────
 async function loadWord() {
     speechState.value = 'loading';
+    mediaUrl.value  = null;
+    mediaUrl2.value = null;
     const params = new URLSearchParams({ mode: practiceMode.value });
     if (currentCategory.value) params.set('category_id', currentCategory.value);
     if (currentLevel.value)    params.set('level', currentLevel.value);

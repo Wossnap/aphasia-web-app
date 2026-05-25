@@ -32,33 +32,44 @@
 
                     <div class="divider"><span>or choose a topic</span></div>
 
-                    <div class="category-grid">
-                        <button
-                            v-for="cat in categories"
-                            :key="cat.id"
-                            class="category-card"
-                            :class="{ active: selectedCategory?.id === cat.id }"
-                            @click="selectCategory(cat)"
-                        >
-                            {{ cat.name }}
-                        </button>
-                    </div>
-
-                    <transition name="fade">
-                        <div v-if="levels.length > 0" class="level-section">
-                            <p class="level-label">Choose a level</p>
-                            <div class="level-grid">
+                    <div class="selector-container">
+                        <transition :name="selectorTransition" mode="out-in">
+                            <!-- Category grid -->
+                            <div v-if="settingsView === 'categories'" key="categories" class="category-grid">
                                 <button
-                                    v-for="lvl in levels"
-                                    :key="lvl"
-                                    class="level-card"
-                                    @click="startLevel(lvl)"
+                                    v-for="cat in categories"
+                                    :key="cat.id"
+                                    class="category-card"
+                                    @click="selectCategory(cat)"
                                 >
-                                    Level {{ lvl }}
+                                    {{ cat.name }}
                                 </button>
                             </div>
-                        </div>
-                    </transition>
+
+                            <!-- Level selector -->
+                            <div v-else-if="settingsView === 'levels'" key="levels" class="level-section">
+                                <div class="level-section-header">
+                                    <button class="btn-back" @click="backToCategories">
+                                        <i class="fas fa-arrow-left"></i>
+                                    </button>
+                                    <p class="level-label">{{ selectedCategory?.name }} — Choose a level</p>
+                                </div>
+                                <div v-if="levelsLoading" class="levels-loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </div>
+                                <div v-else class="level-grid">
+                                    <button
+                                        v-for="lvl in levels"
+                                        :key="lvl"
+                                        class="level-card"
+                                        @click="startLevel(lvl)"
+                                    >
+                                        Level {{ lvl }}
+                                    </button>
+                                </div>
+                            </div>
+                        </transition>
+                    </div>
 
                     <transition name="fade">
                         <button v-if="showInstall" class="btn btn-install" @click="installApp">
@@ -179,11 +190,16 @@ const spokenWord      = ref('');
 const feedback        = ref(null);     // null | 'success' | 'error'
 const selectedCategory = ref(null);
 const levels          = ref([]);
+const levelsLoading   = ref(false);
 const currentCategory = ref(null);
 const currentLevel    = ref(null);
 const practiceMode    = ref('random');
 const mediaUrl        = ref(null);
 const mediaUrl2       = ref(null); // second visual: image when gif+image both exist
+
+// 'categories' | 'levels'
+const settingsView    = ref('categories');
+const selectorTransition = ref('slide-selector-forward');
 
 // PWA install
 const deferredInstall = ref(null);
@@ -225,10 +241,21 @@ const statusClass = computed(() => ({
 async function selectCategory(cat) {
     selectedCategory.value = cat;
     levels.value = [];
+    selectorTransition.value = 'slide-selector-forward';
+    settingsView.value = 'levels';
+    levelsLoading.value = true;
     try {
         const res = await fetch(`/api/categories/${cat.id}/levels`);
         levels.value = await res.json();
     } catch (_) {}
+    levelsLoading.value = false;
+}
+
+function backToCategories() {
+    selectorTransition.value = 'slide-selector-back';
+    settingsView.value = 'categories';
+    selectedCategory.value = null;
+    levels.value = [];
 }
 
 function startRandom() {
@@ -309,6 +336,7 @@ function goBack() {
     speechState.value = 'idle';
     levels.value      = [];
     selectedCategory.value = null;
+    settingsView.value = 'categories';
 }
 
 // ─── Speech result handling ───────────────────────────────────────────────────
@@ -567,6 +595,12 @@ function delay(ms) {
     transform: scale(0.98);
 }
 
+/* ── Selector container ───────────────────────────────────────── */
+.selector-container {
+    width: 100%;
+    overflow: hidden;
+}
+
 /* ── Level section ────────────────────────────────────────────── */
 .level-section {
     width: 100%;
@@ -576,12 +610,43 @@ function delay(ms) {
     border: 1px solid rgba(255,255,255,0.1);
 }
 
+.level-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.btn-back {
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 0.6rem;
+    color: #fff;
+    padding: 0.45rem 0.75rem;
+    font-size: 1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.btn-back:active { background: rgba(255,255,255,0.2); }
+
 .level-label {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
     color: rgba(255,255,255,0.7);
-    margin: 0 0 0.75rem;
+    margin: 0;
+    text-align: left;
+    flex: 1;
+}
+
+.levels-loading {
     text-align: center;
+    padding: 1.5rem;
+    font-size: 1.5rem;
+    color: rgba(255,255,255,0.4);
 }
 
 .level-grid {
@@ -776,6 +841,21 @@ function delay(ms) {
     from { transform: scale(0.5); opacity: 0; }
     to   { transform: scale(1);   opacity: 1; }
 }
+
+/* ── Selector slide transitions ─────────────────────────────── */
+.slide-selector-forward-enter-active,
+.slide-selector-forward-leave-active,
+.slide-selector-back-enter-active,
+.slide-selector-back-leave-active {
+    transition: transform 0.28s ease, opacity 0.28s ease;
+    position: relative;
+}
+
+.slide-selector-forward-enter-from { transform: translateX(60px); opacity: 0; }
+.slide-selector-forward-leave-to   { transform: translateX(-60px); opacity: 0; }
+
+.slide-selector-back-enter-from    { transform: translateX(-60px); opacity: 0; }
+.slide-selector-back-leave-to      { transform: translateX(60px);  opacity: 0; }
 
 /* ── Transitions ──────────────────────────────────────────────── */
 .slide-left-enter-active,

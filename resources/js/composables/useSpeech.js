@@ -4,6 +4,10 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const useGoogle = speechDriver === 'google';
 
+    // Per-word engine override ('v1'|'v2') for the current word, or null to let the
+    // server fall back to the live .env default. Set in playWordAndListen().
+    let activeVersion = null;
+
     let recognition      = null;
     let persistentStream = null;
     let voices           = [];
@@ -20,6 +24,8 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     let vadTimeout       = null;
     let googleRecording  = false;
     let stoppedByUser    = false;
+    let restartTimer     = null;   // pending Google restart, cancellable on stop
+    let wantListening    = false;  // user intent — single source of truth for restarts
 
     const micReady = ref(false);
 
@@ -87,6 +93,11 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     // ─── Google Cloud speech recognition ──────────────────────────────────────
     async function startGoogleListening() {
         if (googleRecording) return;
+        // Bail if the user stopped (or is in playback) since this was scheduled.
+        if (!wantListening || isBlocked) return;
+
+        clearTimeout(restartTimer);
+        restartTimer = null;
 
         try {
             if (!persistentStream) {
@@ -111,6 +122,13 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
             };
 
             mediaRecorder.onstop = () => processGoogleAudio();
+
+            // The mic acquisition above can await; re-check the user didn't stop meanwhile.
+            if (!wantListening || isBlocked) {
+                if (vadAudioCtx?.state !== 'closed') { vadAudioCtx.close(); vadAudioCtx = null; }
+                vadAnalyser = null;
+                return;
+            }
 
             googleRecording = true;
             stoppedByUser   = false;
@@ -201,6 +219,9 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         const blob     = new Blob(audioChunks, { type: 'audio/webm' });
         const formData = new FormData();
         formData.append('audio', blob, 'recording.webm');
+        // Only send a version when this word overrides the engine; otherwise the
+        // server picks the current .env default (no stale page-baked value).
+        if (activeVersion) formData.append('version', activeVersion);
 
         try {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -212,6 +233,9 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
 
             const text = await res.text();
             if (!res.ok) { restartGoogleIfNeeded(); return; }
+
+            // User stopped while this request was in flight — drop the result.
+            if (!wantListening) return;
 
             const data = JSON.parse(text);
             if (data.results?.[0]?.alternatives?.[0]?.transcript) {
@@ -226,8 +250,9 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     }
 
     function restartGoogleIfNeeded() {
-        if (isListening && !isBlocked) {
-            setTimeout(startGoogleListening, 500);
+        if (wantListening && !isBlocked) {
+            clearTimeout(restartTimer);
+            restartTimer = setTimeout(startGoogleListening, 500);
         }
     }
 
@@ -251,6 +276,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     // ─── Unified listen control ───────────────────────────────────────────────
     function startListening() {
         if (isBlocked) return;
+        wantListening = true;
         if (useGoogle) {
             startGoogleListening();
         } else {
@@ -261,7 +287,10 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     }
 
     function stopListening() {
-        isListening = false;
+        wantListening = false;
+        isListening   = false;
+        clearTimeout(restartTimer);
+        restartTimer = null;
         if (useGoogle) {
             stopGoogleListening(true);
         } else {
@@ -300,6 +329,12 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     async function playWordAndListen(word) {
         stopListening();
         window.speechSynthesis.cancel();
+
+        // Per-word override wins; otherwise null → server uses the live .env default.
+        activeVersion = (word?.engine === 'v1' || word?.engine === 'v2')
+            ? word.engine
+            : null;
+
         isBlocked = true;
         setState('playing');
 

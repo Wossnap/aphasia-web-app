@@ -52,6 +52,9 @@ Route::middleware(['web', 'admin'])->group(function () {
         return response()->json(['pills' => $pills]);
     })->name('admin.words.autofill-transliterations');
 
+    // Bulk-set speech engine on selected words
+    Route::post('words/bulk-engine', [WordController::class, 'bulkEngine'])->name('admin.words.bulk-engine');
+
     // Words Management
     Route::resource('words', WordController::class)->names([
         'index' => 'admin.words.index',

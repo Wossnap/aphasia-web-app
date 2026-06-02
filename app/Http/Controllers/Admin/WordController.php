@@ -64,6 +64,7 @@ class WordController extends Controller
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
             'order' => 'nullable|integer|min:0',
+            'engine' => 'nullable|in:v1,v2',
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
@@ -82,6 +83,7 @@ class WordController extends Controller
             'transliterations' => $transliterations,
             'show_in_random' => $request->has('show_in_random'),
             'order' => $validated['order'] ?? null,
+            'engine' => $validated['engine'] ?? null,
         ]);
 
         // Handle file uploads to public folder
@@ -156,6 +158,7 @@ class WordController extends Controller
             'gif_file' => 'nullable|mimes:gif|max:10240',
             'show_in_random' => 'boolean',
             'order' => 'nullable|integer|min:0',
+            'engine' => 'nullable|in:v1,v2',
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
@@ -174,6 +177,7 @@ class WordController extends Controller
             'transliterations' => $transliterations,
             'show_in_random' => $request->has('show_in_random'),
             'order' => $validated['order'] ?? null,
+            'engine' => $validated['engine'] ?? null,
         ]);
 
         // Handle file uploads and deletions in public folder
@@ -253,5 +257,25 @@ class WordController extends Controller
         $word->delete();
 
         return redirect()->route('admin.words.index')->with('success', 'Word deleted successfully.');
+    }
+
+    /**
+     * Bulk-set the speech engine on the selected words.
+     * An empty engine resets them to the global .env default.
+     */
+    public function bulkEngine(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:amharic_words,id',
+            'engine' => 'nullable|in:v1,v2',
+        ]);
+
+        $engine = $validated['engine'] ?? null;
+        $count = AmharicWord::whereIn('id', $validated['ids'])->update(['engine' => $engine]);
+
+        $label = $engine ? "Google {$engine}" : 'Default (.env)';
+
+        return redirect()->back()->with('success', "Set engine to {$label} for {$count} word(s).");
     }
 }

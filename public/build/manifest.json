@@ -1,11 +1,11 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-RmYHnM92.css",
+    "file": "assets/app-BX2k47SS.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/Pages/Practice.vue": {
-    "file": "assets/Practice-B9OIlYaw.js",
+    "file": "assets/Practice-CiBsTgwQ.js",
     "name": "Practice",
     "src": "resources/js/Pages/Practice.vue",
     "isDynamicEntry": true,
@@ -13,11 +13,11 @@
       "resources/js/app.js"
     ],
     "css": [
-      "assets/Practice-CXlxFw4r.css"
+      "assets/Practice-Co5hMJTK.css"
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-DTGxvX0V.js",
+    "file": "assets/app-DGg-UwYm.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,

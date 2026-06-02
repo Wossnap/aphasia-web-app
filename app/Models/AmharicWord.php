@@ -14,7 +14,8 @@ class AmharicWord extends Model
         'gif_path',
         'show_in_random',
         'image_path',
-        'order'
+        'order',
+        'engine'
     ];
 
     protected $casts = [

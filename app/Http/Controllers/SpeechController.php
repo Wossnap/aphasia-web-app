@@ -16,12 +16,20 @@ class SpeechController extends Controller
 
     public function transcribe(Request $request)
     {
+        // A valid per-word version override implies a Google request, so honor it
+        // even when the global default driver is not 'google'.
+        $requestedVersion = in_array($request->input('version'), ['v1', 'v2'], true)
+            ? $request->input('version')
+            : null;
+
         \Illuminate\Support\Facades\Log::info('transcribe() called', [
             'driver' => config('services.google_speech.driver'),
+            'requested_version' => $request->input('version') ?: '(none sent)',
+            'effective_version' => $requestedVersion ?? config('services.google_speech.version'),
             'has_audio' => $request->hasFile('audio'),
         ]);
 
-        if (config('services.google_speech.driver') !== 'google') {
+        if (!$requestedVersion && config('services.google_speech.driver') !== 'google') {
             \Illuminate\Support\Facades\Log::warning('Google Speech driver not enabled, returning 403');
             return response()->json(['error' => 'Google Speech driver is not enabled'], 403);
         }
@@ -29,6 +37,11 @@ class SpeechController extends Controller
         $request->validate([
             'audio' => 'required|file|mimes:webm,ogg'
         ]);
+
+        // Per-word override wins; otherwise the service falls back to the .env default.
+        if ($requestedVersion) {
+            config(['services.google_speech.version' => $requestedVersion]);
+        }
 
         $file = $request->file('audio');
         $audioContent = file_get_contents($file->getRealPath());

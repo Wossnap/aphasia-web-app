@@ -42,12 +42,37 @@
         </div>
     </div>
 
+    <!-- Bulk action bar. The checkboxes live in the table below and are linked
+         to this form via their form="bulk-engine-form" attribute (no nesting). -->
+    <form method="POST" action="{{ route('admin.words.bulk-engine') }}" id="bulk-engine-form">
+        @csrf
+        <div class="flex items-center gap-3 mb-3 bg-white shadow rounded-lg px-4 py-3">
+            <span class="text-sm font-medium text-gray-700">Bulk set engine:</span>
+            <select name="engine" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Default (.env)</option>
+                <option value="v1">Google v1</option>
+                <option value="v2">Google v2 (Chirp)</option>
+            </select>
+            <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                    id="bulk-apply-btn" disabled
+                    onclick="return confirm('Apply this engine to the selected words?')">
+                Apply to selected
+            </button>
+            <span id="bulk-selected-count" class="text-sm text-gray-500">0 selected</span>
+        </div>
+    </form>
+
     <!-- Words Table -->
     <div class="bg-white shadow rounded-lg">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-6 py-3 text-left">
+                            <input type="checkbox" id="select-all"
+                                   class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style="max-width: 200px;">Word</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Meaning</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</th>
@@ -55,12 +80,17 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Media</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Random</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engine</th>
                         <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($words as $word)
                         <tr>
+                            <td class="px-6 py-4">
+                                <input type="checkbox" name="ids[]" value="{{ $word->id }}" form="bulk-engine-form"
+                                       class="row-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                            </td>
                             <td class="px-6 py-4" style="max-width: 200px;">
                                 <div class="text-sm font-medium text-gray-900">{{ $word->word }}</div>
                                 @if($word->transliterations)
@@ -117,6 +147,13 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {{ $word->order ?? '—' }}
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                @if($word->engine)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">{{ $word->engine }}</span>
+                                @else
+                                    <span class="text-sm text-gray-400">default</span>
+                                @endif
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end space-x-2">
                                     <a href="{{ route('admin.words.show', $word) }}" class="text-indigo-600 hover:text-indigo-900">View</a>
@@ -134,7 +171,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                            <td colspan="10" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                 No words found.
                             </td>
                         </tr>
@@ -150,4 +187,29 @@
             </div>
         @endif
     </div>
+
+    <script>
+        (function () {
+            const selectAll = document.getElementById('select-all');
+            const rows = Array.from(document.querySelectorAll('.row-checkbox'));
+            const countEl = document.getElementById('bulk-selected-count');
+            const applyBtn = document.getElementById('bulk-apply-btn');
+
+            function refresh() {
+                const n = rows.filter(c => c.checked).length;
+                countEl.textContent = n + ' selected';
+                applyBtn.disabled = n === 0;
+                if (selectAll) selectAll.checked = n > 0 && n === rows.length;
+            }
+
+            if (selectAll) {
+                selectAll.addEventListener('change', () => {
+                    rows.forEach(c => { c.checked = selectAll.checked; });
+                    refresh();
+                });
+            }
+            rows.forEach(c => c.addEventListener('change', refresh));
+            refresh();
+        })();
+    </script>
 @endsection

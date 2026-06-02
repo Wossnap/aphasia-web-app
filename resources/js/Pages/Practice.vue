@@ -177,9 +177,10 @@ import { ref, computed, onMounted } from 'vue';
 import { useSpeech } from '../composables/useSpeech';
 
 const props = defineProps({
-    categories:   { type: Array,  default: () => [] },
-    speechDriver: { type: String, default: 'browser' },
-    translations: { type: Object, default: () => ({}) },
+    categories:    { type: Array,  default: () => [] },
+    speechDriver:  { type: String, default: 'browser' },
+    speechVersion: { type: String, default: 'v1' },
+    translations:  { type: Object, default: () => ({}) },
 });
 
 // ─── App state ────────────────────────────────────────────────────────────────
@@ -207,7 +208,7 @@ const showInstall     = ref(false);
 
 // ─── Speech composable ────────────────────────────────────────────────────────
 const { playWordAndListen, replayWord, stopAll, requestMicPermission } = useSpeech({
-    speechDriver: props.speechDriver,
+    speechDriver:  props.speechDriver,
     onStateChange: (s) => { speechState.value = s; },
     onResult:      handleSpokenResult,
 });

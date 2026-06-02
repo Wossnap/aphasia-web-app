@@ -93,7 +93,8 @@ class AmharicWordController extends Controller
             'audio_path' => $word->audio_path,
             'gif_path'   => $word->gif_path,
             'image_path' => $word->image_path,
-            'show_in_random' => $word->show_in_random
+            'show_in_random' => $word->show_in_random,
+            'engine' => $word->engine
         ]);
     }
 
@@ -104,6 +105,7 @@ class AmharicWordController extends Controller
         return Inertia::render('Practice', [
             'categories'   => $categories,
             'speechDriver' => config('services.google_speech.driver', 'browser'),
+            'speechVersion' => config('services.google_speech.version', 'v1'),
             'translations' => [
                 'next_word' => __('app.next_word'),
                 'excellent' => __('app.excellent'),

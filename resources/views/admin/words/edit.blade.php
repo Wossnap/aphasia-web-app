@@ -83,6 +83,21 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+                        <div>
+                            <label for="engine" class="block text-sm font-medium text-gray-700">Speech Engine</label>
+                            <select name="engine" id="engine"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    style="border: 1px solid #d1d5db !important;">
+                                <option value="">Default (.env)</option>
+                                <option value="v1" @selected(old('engine', $word->engine) === 'v1')>Google v1</option>
+                                <option value="v2" @selected(old('engine', $word->engine) === 'v2')>Google v2 (Chirp)</option>
+                            </select>
+                            <p class="mt-1 text-sm text-gray-500">Overrides the global default for this word. Tip: v1 suits numbers, v2 suits words.</p>
+                            @error('engine')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
             </div>

@@ -166,6 +166,17 @@
                     </button>
                 </div>
 
+                <!-- Floating pause / resume button -->
+                <button
+                    v-if="!awaitingStart"
+                    class="btn-pause-float"
+                    :class="{ 'btn-pause-float--paused': paused }"
+                    @click="togglePause"
+                    :title="paused ? 'Resume' : 'Pause'"
+                >
+                    <i :class="paused ? 'fas fa-play' : 'fas fa-pause'"></i>
+                </button>
+
                 <!-- Tap-to-start overlay (deep link / reload onto a practice URL) -->
                 <transition name="fade">
                     <div v-if="awaitingStart" class="start-overlay" @click="beginPractice">
@@ -230,6 +241,7 @@ const practiceMode    = ref('consecutive');
 const mediaUrl        = ref(null);
 const mediaUrl2       = ref(null); // second visual: image when gif+image both exist
 const awaitingStart   = ref(false); // deep-link landed on a practice URL; wait for a tap (audio needs a gesture)
+const paused          = ref(false); // user paused mid-session (no audio, no mic)
 
 // 'categories' | 'levels'
 const settingsView    = ref('categories');
@@ -324,6 +336,7 @@ function startLevel(lvl) {
 
 async function launchPractice() {
     awaitingStart.value = false;
+    paused.value = false;
     screen.value = 'practice';
     speechState.value = 'loading';
     await loadWord();
@@ -389,6 +402,18 @@ async function listenAgain() {
     await replayWord(currentWord.value);
 }
 
+// Pause: stop all audio/mic immediately; resume replays the current word.
+function togglePause() {
+    if (paused.value) {
+        paused.value = false;
+        playWordAndListen(currentWord.value);
+    } else {
+        paused.value = true;
+        stopAll();
+        speechState.value = 'idle';
+    }
+}
+
 // Next level — only shown when practising a specific level that has a successor.
 const nextLevel = computed(() => {
     if (!currentLevel.value || !levels.value.length) return null;
@@ -414,6 +439,7 @@ function stopPractice() {
     feedback.value    = null;
     speechState.value = 'idle';
     awaitingStart.value = false;
+    paused.value = false;
     screen.value = 'settings';
 
     if (selectedCategory.value?.slug) {
@@ -828,6 +854,34 @@ function delay(ms) {
 .level-card-letter {
     font-size: 1.8rem;
     line-height: 1.2;
+}
+
+.btn-pause-float {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s, color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.btn-pause-float:active,
+.btn-pause-float--paused {
+    background: rgba(139, 92, 246, 0.4);
+    border-color: rgba(139, 92, 246, 0.6);
+    color: #fff;
 }
 
 .start-overlay {

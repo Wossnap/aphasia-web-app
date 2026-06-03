@@ -11,26 +11,28 @@
                     <div class="mode-toggle">
                         <button
                             class="mode-btn"
-                            :class="{ 'mode-btn-active': practiceMode === 'random' }"
-                            @click="practiceMode = 'random'"
-                        >
-                            <i class="fas fa-random"></i> Shuffle
-                        </button>
-                        <button
-                            class="mode-btn"
                             :class="{ 'mode-btn-active': practiceMode === 'consecutive' }"
                             @click="practiceMode = 'consecutive'"
                         >
                             <i class="fas fa-list-ol"></i> In Order
                         </button>
+                        <button
+                            class="mode-btn"
+                            :class="{ 'mode-btn-active': practiceMode === 'random' }"
+                            @click="practiceMode = 'random'"
+                        >
+                            <i class="fas fa-random"></i> Shuffle
+                        </button>
                     </div>
 
+                    <!-- Start Practice (random) commented out — users pick a topic below
                     <button class="btn btn-primary btn-xl" @click="startRandom">
                         <i class="fas fa-play btn-icon"></i>
                         Start Practice
                     </button>
+                    -->
 
-                    <div class="divider"><span>or choose a topic</span></div>
+                    <div class="divider"><span>choose a topic</span></div>
 
                     <div class="selector-container">
                         <transition :name="selectorTransition" mode="out-in">
@@ -60,11 +62,12 @@
                                 <div v-else class="level-grid">
                                     <button
                                         v-for="lvl in levels"
-                                        :key="lvl"
+                                        :key="lvl.level"
                                         class="level-card"
-                                        @click="startLevel(lvl)"
+                                        :class="{ 'level-card-letter': lvl.label }"
+                                        @click="startLevel(lvl.level)"
                                     >
-                                        Level {{ lvl }}
+                                        {{ lvl.label ?? ('Level ' + lvl.level) }}
                                     </button>
                                 </div>
                             </div>
@@ -120,7 +123,8 @@
                         <span class="amharic-word">{{ currentWord?.word ?? '…' }}</span>
                     </div>
 
-                    <div v-if="spokenWord" class="spoken-display">
+                    <!-- Only show what was said in the body when it was WRONG -->
+                    <div v-if="spokenWord && feedback === 'error'" class="spoken-display">
                         <span class="spoken-label">You said:</span>
                         <span class="spoken-word">{{ spokenWord }}</span>
                     </div>
@@ -146,11 +150,31 @@
                         Next Word
                     </button>
 
-                    <button class="btn btn-danger btn-lg" @click="goBack">
+                    <button
+                        v-if="nextLevel"
+                        class="btn btn-accent btn-lg"
+                        :disabled="speechState === 'loading'"
+                        @click="goToNextLevel"
+                    >
+                        <i class="fas fa-arrow-right btn-icon"></i>
+                        Next Level
+                    </button>
+
+                    <button class="btn btn-danger btn-lg" @click="stopPractice">
                         <i class="fas fa-stop btn-icon"></i>
                         Stop
                     </button>
                 </div>
+
+                <!-- Tap-to-start overlay (deep link / reload onto a practice URL) -->
+                <transition name="fade">
+                    <div v-if="awaitingStart" class="start-overlay" @click="beginPractice">
+                        <button class="btn btn-primary btn-xl">
+                            <i class="fas fa-play btn-icon"></i>
+                            Tap to start
+                        </button>
+                    </div>
+                </transition>
             </div>
         </transition>
 
@@ -163,6 +187,11 @@
                     <div class="feedback-message">
                         {{ feedback === 'success' ? translations.excellent : translations.try_again }}
                     </div>
+                    <!-- On success: show what they said under Excellent -->
+                    <div v-if="feedback === 'success' && spokenWord" class="feedback-spoken feedback-spoken-success">
+                        "{{ spokenWord }}"
+                    </div>
+                    <!-- On error: show what they said in the overlay too -->
                     <div v-if="feedback === 'error' && spokenWord" class="feedback-spoken">
                         "{{ spokenWord }}"
                     </div>
@@ -173,14 +202,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSpeech } from '../composables/useSpeech';
 
 const props = defineProps({
-    categories:    { type: Array,  default: () => [] },
-    speechDriver:  { type: String, default: 'browser' },
-    speechVersion: { type: String, default: 'v1' },
-    translations:  { type: Object, default: () => ({}) },
+    categories:        { type: Array,  default: () => [] },
+    speechDriver:      { type: String, default: 'browser' },
+    speechVersion:     { type: String, default: 'v1' },
+    initialSlug:       { type: String, default: null },
+    initialCategoryId: { type: Number, default: null },
+    initialLevel:      { type: Number, default: null },
+    translations:      { type: Object, default: () => ({}) },
 });
 
 // ─── App state ────────────────────────────────────────────────────────────────
@@ -194,9 +226,10 @@ const levels          = ref([]);
 const levelsLoading   = ref(false);
 const currentCategory = ref(null);
 const currentLevel    = ref(null);
-const practiceMode    = ref('random');
+const practiceMode    = ref('consecutive');
 const mediaUrl        = ref(null);
 const mediaUrl2       = ref(null); // second visual: image when gif+image both exist
+const awaitingStart   = ref(false); // deep-link landed on a practice URL; wait for a tap (audio needs a gesture)
 
 // 'categories' | 'levels'
 const settingsView    = ref('categories');
@@ -207,7 +240,7 @@ const deferredInstall = ref(null);
 const showInstall     = ref(false);
 
 // ─── Speech composable ────────────────────────────────────────────────────────
-const { playWordAndListen, replayWord, stopAll, requestMicPermission } = useSpeech({
+const { playWordAndListen, replayWord, stopAll } = useSpeech({
     speechDriver:  props.speechDriver,
     onStateChange: (s) => { speechState.value = s; },
     onResult:      handleSpokenResult,
@@ -238,12 +271,18 @@ const statusClass = computed(() => ({
     processing: 'status-processing',
 }[speechState.value] ?? 'status-idle'));
 
+// ─── URL sync (History API) ───────────────────────────────────────────────────
+// Forward navigation updates the URL without an Inertia visit, so the click
+// gesture is preserved (audio/mic autoplay needs it). We keep the existing
+// history.state (Inertia's page lives there) so this component stays mounted.
+function syncUrl(path) {
+    if (window.location.pathname === path) return;
+    window.history.pushState(window.history.state, '', path);
+}
+
 // ─── Category / level selection ───────────────────────────────────────────────
-async function selectCategory(cat) {
-    selectedCategory.value = cat;
+async function fetchLevels(cat) {
     levels.value = [];
-    selectorTransition.value = 'slide-selector-forward';
-    settingsView.value = 'levels';
     levelsLoading.value = true;
     try {
         const res = await fetch(`/api/categories/${cat.id}/levels`);
@@ -252,11 +291,20 @@ async function selectCategory(cat) {
     levelsLoading.value = false;
 }
 
+async function selectCategory(cat) {
+    selectedCategory.value = cat;
+    selectorTransition.value = 'slide-selector-forward';
+    settingsView.value = 'levels';
+    syncUrl(`/${cat.slug}`);
+    await fetchLevels(cat);
+}
+
 function backToCategories() {
     selectorTransition.value = 'slide-selector-back';
     settingsView.value = 'categories';
     selectedCategory.value = null;
     levels.value = [];
+    syncUrl('/');
 }
 
 function startRandom() {
@@ -268,13 +316,26 @@ function startRandom() {
 function startLevel(lvl) {
     currentCategory.value = selectedCategory.value?.id ?? null;
     currentLevel.value    = lvl;
+    if (selectedCategory.value?.slug) {
+        syncUrl(`/${selectedCategory.value.slug}/level-${lvl}`);
+    }
     launchPractice();
 }
 
 async function launchPractice() {
+    awaitingStart.value = false;
     screen.value = 'practice';
     speechState.value = 'loading';
     await loadWord();
+    await playWordAndListen(currentWord.value);
+}
+
+// Tap-to-start: used when a practice URL is opened cold (reload / deep link),
+// where there is no user gesture yet to allow audio + mic.
+async function beginPractice() {
+    awaitingStart.value = false;
+    speechState.value = 'loading';
+    if (!currentWord.value) await loadWord();
     await playWordAndListen(currentWord.value);
 }
 
@@ -328,16 +389,94 @@ async function listenAgain() {
     await replayWord(currentWord.value);
 }
 
-function goBack() {
+// Next level — only shown when practising a specific level that has a successor.
+const nextLevel = computed(() => {
+    if (!currentLevel.value || !levels.value.length) return null;
+    const idx = levels.value.findIndex(l => l.level === currentLevel.value);
+    return idx !== -1 && idx < levels.value.length - 1 ? levels.value[idx + 1] : null;
+});
+
+async function goToNextLevel() {
+    if (!nextLevel.value) return;
+    currentLevel.value = nextLevel.value.level;
+    if (selectedCategory.value?.slug) {
+        syncUrl(`/${selectedCategory.value.slug}/level-${nextLevel.value.level}`);
+    }
+    await launchPractice();
+}
+
+// Stop returns to the level grid of the current category (or to the category
+// list when practicing the random pool, which has no addressable location).
+function stopPractice() {
     stopAll();
-    screen.value      = 'settings';
     currentWord.value = null;
     spokenWord.value  = '';
     feedback.value    = null;
     speechState.value = 'idle';
-    levels.value      = [];
-    selectedCategory.value = null;
-    settingsView.value = 'categories';
+    awaitingStart.value = false;
+    screen.value = 'settings';
+
+    if (selectedCategory.value?.slug) {
+        settingsView.value = 'levels';
+        syncUrl(`/${selectedCategory.value.slug}`);
+        if (!levels.value.length) fetchLevels(selectedCategory.value);
+    } else {
+        settingsView.value = 'categories';
+        selectedCategory.value = null;
+        syncUrl('/');
+    }
+}
+
+// ─── Deep-link / history wiring ───────────────────────────────────────────────
+// Map a URL path onto UI state. Used on mount (from server props) and on
+// browser back/forward (popstate). Never auto-plays audio — a practice URL
+// shows the word and waits for a tap.
+function applyPath(pathname) {
+    const parts = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+
+    // Categories
+    if (parts.length === 0) {
+        stopAll();
+        screen.value = 'settings';
+        settingsView.value = 'categories';
+        selectedCategory.value = null;
+        awaitingStart.value = false;
+        speechState.value = 'idle';
+        return;
+    }
+
+    const cat = props.categories.find(c => c.slug === parts[0]);
+    if (!cat) { // unknown slug -> categories
+        screen.value = 'settings';
+        settingsView.value = 'categories';
+        selectedCategory.value = null;
+        return;
+    }
+    selectedCategory.value = cat;
+
+    const levelMatch = parts[1] ? parts[1].match(/^level-(\d+)$/) : null;
+    if (levelMatch) {
+        // Practice URL: show the word, wait for a tap to start (no gesture here).
+        stopAll();
+        currentCategory.value = cat.id;
+        currentLevel.value    = parseInt(levelMatch[1], 10);
+        screen.value = 'practice';
+        awaitingStart.value = true;
+        spokenWord.value = '';
+        loadWord();
+    } else {
+        // Levels view.
+        stopAll();
+        screen.value = 'settings';
+        settingsView.value = 'levels';
+        awaitingStart.value = false;
+        speechState.value = 'idle';
+        fetchLevels(cat);
+    }
+}
+
+function onPopState() {
+    applyPath(window.location.pathname);
 }
 
 // ─── Speech result handling ───────────────────────────────────────────────────
@@ -376,7 +515,18 @@ function installApp() {
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 onMounted(() => {
-    requestMicPermission();
+    // Mic is intentionally NOT opened here — it would light up the mic indicator
+    // on the landing screen. It opens when practice starts (playWordAndListen).
+
+    // Deep link: open straight onto the category's levels, or a practice URL
+    // (which shows the word and waits for a tap, since there's no gesture yet).
+    if (props.initialSlug) {
+        let path = `/${props.initialSlug}`;
+        if (props.initialLevel != null) path += `/level-${props.initialLevel}`;
+        applyPath(path);
+    }
+
+    window.addEventListener('popstate', onPopState);
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
@@ -385,6 +535,10 @@ onMounted(() => {
     });
 
     if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('popstate', onPopState);
 });
 
 function delay(ms) {
@@ -671,6 +825,23 @@ function delay(ms) {
     -webkit-tap-highlight-color: transparent;
 }
 
+.level-card-letter {
+    font-size: 1.8rem;
+    line-height: 1.2;
+}
+
+.start-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: 20;
+    cursor: pointer;
+}
+
 .level-card:active {
     background: #8B5CF6;
     color: #fff;
@@ -836,6 +1007,18 @@ function delay(ms) {
     font-weight: 600;
     color: rgba(255,255,255,0.85);
     font-style: italic;
+}
+
+.feedback-spoken-success {
+    font-size: 1.6rem;
+    color: #fff;
+    opacity: 0.9;
+}
+
+.btn-accent {
+    background: rgba(20, 184, 166, 0.25);
+    color: #5EEAD4;
+    border: 2px solid rgba(20, 184, 166, 0.4);
 }
 
 @keyframes pop-in {

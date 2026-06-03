@@ -98,14 +98,27 @@ class AmharicWordController extends Controller
         ]);
     }
 
-    public function practice()
+    public function practice($categorySlug = null, $level = null)
     {
-        $categories = Category::all()->map(fn($c) => ['id' => $c->id, 'name' => $c->name]);
+        $categories = Category::all()->map(fn($c) => [
+            'id'   => $c->id,
+            'name' => $c->name,
+            'slug' => $c->slug,
+        ]);
+
+        // Resolve the initial deep-link target (if any) so the page can open
+        // straight onto that category's levels / a specific practice level.
+        $initialCategory = $categorySlug
+            ? $categories->firstWhere('slug', $categorySlug)
+            : null;
 
         return Inertia::render('Practice', [
             'categories'   => $categories,
             'speechDriver' => config('services.google_speech.driver', 'browser'),
             'speechVersion' => config('services.google_speech.version', 'v1'),
+            'initialSlug'  => $initialCategory['slug'] ?? null,
+            'initialCategoryId' => $initialCategory['id'] ?? null,
+            'initialLevel' => $initialCategory && $level !== null ? (int) $level : null,
             'translations' => [
                 'next_word' => __('app.next_word'),
                 'excellent' => __('app.excellent'),
@@ -124,14 +137,30 @@ class AmharicWordController extends Controller
     public function getLevels($categoryId)
     {
         try {
-            $maxLevel = DB::table('category_word')
-                ->where('category_id', $categoryId)
-                ->max('level');
+            // Pull every word in the category with its level + order in one query.
+            $rows = DB::table('category_word')
+                ->join('amharic_words', 'amharic_words.id', '=', 'category_word.amharic_word_id')
+                ->where('category_word.category_id', $categoryId)
+                ->select('category_word.level', 'amharic_words.word', 'amharic_words.order')
+                ->get();
 
-            // Ensure maxLevel is at least 1 and cast to int to avoid PHP 8.1+ deprecation warnings in range()
-            $maxLevel = max(1, (int)$maxLevel);
+            if ($rows->isEmpty()) {
+                return response()->json([['level' => 1, 'label' => null]]);
+            }
 
-            return response()->json(range(1, $maxLevel));
+            // For each level, the representative word = lowest order. If it is a
+            // single character (e.g. a fidel base like ሀ), use it as the label;
+            // otherwise leave null so the UI falls back to "Level N".
+            $levels = $rows->groupBy('level')
+                ->map(function ($group, $level) {
+                    $first = $group->sortBy(fn ($r) => $r->order ?? PHP_INT_MAX)->first();
+                    $label = ($first && mb_strlen($first->word) === 1) ? $first->word : null;
+                    return ['level' => (int) $level, 'label' => $label];
+                })
+                ->sortBy('level')
+                ->values();
+
+            return response()->json($levels);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

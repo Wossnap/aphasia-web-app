@@ -26,3 +26,15 @@ Route::get('language/{locale}', function ($locale) {
     }
     return redirect()->back();
 })->name('language.switch');
+
+// Deep-linkable practice URLs: /{slug} (levels) and /{slug}/level-{n} (practice).
+// Registered last; the constraint excludes reserved prefixes so it never shadows
+// api/admin/asset routes. The page renders for any slug; an unknown one just
+// falls back to the category list client-side.
+$reservedSlugs = 'api|admin|language|build|audio|images|gifs|storage|css|js|fonts';
+Route::get('/{categorySlug}', [AmharicWordController::class, 'practice'])
+    ->where('categorySlug', '(?!(' . $reservedSlugs . ')$)[a-z0-9-]+')
+    ->name('practice.category');
+Route::get('/{categorySlug}/level-{level}', [AmharicWordController::class, 'practice'])
+    ->where(['categorySlug' => '(?!(' . $reservedSlugs . ')$)[a-z0-9-]+', 'level' => '[0-9]+'])
+    ->name('practice.level');

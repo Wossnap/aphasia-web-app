@@ -14,6 +14,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     let isListening      = false;
     let isBlocked        = false;
     let recStopped       = true;
+    let sessionId        = 0;   // incremented on every stopAll/stopListening so stale playWordAndListen calls abort
 
     // Google-mode state
     let mediaRecorder    = null;
@@ -186,7 +187,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
                     silenceStart = null;
                 } else if (hasSpoken) {
                     silenceStart ??= Date.now();
-                    if (Date.now() - silenceStart > 1500) {
+                    if (Date.now() - silenceStart > 400) {
                         stopGoogleListening();
                         return;
                     }
@@ -287,6 +288,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     }
 
     function stopListening() {
+        sessionId++;           // invalidates any awaiting playWordAndListen
         wantListening = false;
         isListening   = false;
         clearTimeout(restartTimer);
@@ -330,6 +332,10 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         stopListening();
         window.speechSynthesis.cancel();
 
+        // Capture the current session so we can bail if stop is called mid-await.
+        const mySession = ++sessionId;
+        const alive = () => mySession === sessionId;
+
         // Per-word override wins; otherwise null → server uses the live .env default.
         activeVersion = (word?.engine === 'v1' || word?.engine === 'v2')
             ? word.engine
@@ -339,14 +345,18 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         setState('playing');
 
         if (isMobile || useGoogle) await openMic();
+        if (!alive()) return;
 
         if (word.audio_path) {
             await playAudio(`/audio/${word.audio_path}`);
         } else {
             await speak(word.word);
         }
+        if (!alive()) return;
 
         await delay(400);
+        if (!alive()) return;
+
         isBlocked = false;
         setState('listening');
         startListening();

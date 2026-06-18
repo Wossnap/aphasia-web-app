@@ -28,6 +28,8 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     let restartTimer     = null;   // pending Google restart, cancellable on stop
     let wantListening    = false;  // user intent — single source of truth for restarts
     let hasSpokenDetected = false; // set true by VAD when speech is detected; prevents silent API calls
+    let silentRetries     = 0;     // consecutive silent windows; stop listening after MAX_SILENT_RETRIES
+    const MAX_SILENT_RETRIES = 3;
 
     const micReady = ref(false);
 
@@ -137,13 +139,13 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
             hasSpokenDetected = false;
             isListening       = true;
 
-            // Don't record yet — monitorSilence() starts the recorder only once
-            // speech is detected, so silent periods never produce audio to upload.
+            // Record from the start so the word's onset is never clipped. The blob
+            // is only uploaded if VAD actually detected speech (see processGoogleAudio).
+            mediaRecorder.start();
             monitorSilence();
 
-            // Safety: if no speech is detected at all, tear down and recalibrate
-            // after 15 s (ambient noise may have drifted). Nothing is uploaded.
-            vadTimeout = setTimeout(() => stopGoogleListening(), 15000);
+            // Safety: stop after 10 s max
+            vadTimeout = setTimeout(() => stopGoogleListening(), 10000);
 
         } catch (err) {
             console.error('Google listening error:', err);
@@ -180,26 +182,18 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
 
         function startVad(threshold) {
             let silenceStart = null;
-            let recording    = false;   // mediaRecorder actively capturing
+            let hasSpoken    = false;
 
             const check = () => {
                 if (!googleRecording) return;
                 const rms = getRms();
 
                 if (rms > threshold) {
-                    // Speech detected. Start capturing on the first crossing so the
-                    // blob holds the spoken word, not the silence that preceded it.
-                    if (!recording) {
-                        recording         = true;
-                        hasSpokenDetected = true;
-                        audioChunks       = [];
-                        mediaRecorder.start();
-                        clearTimeout(vadTimeout);
-                        // Cap a single utterance at 10 s of actual recording.
-                        vadTimeout = setTimeout(() => stopGoogleListening(), 10000);
-                    }
-                    silenceStart = null;
-                } else if (recording) {
+                    hasSpoken         = true;
+                    hasSpokenDetected = true;
+                    silentRetries     = 0;   // engaged — reset the give-up counter
+                    silenceStart      = null;
+                } else if (hasSpoken) {
                     silenceStart ??= Date.now();
                     if (Date.now() - silenceStart > 400) {
                         stopGoogleListening();
@@ -220,23 +214,26 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         clearTimeout(vadTimeout);
         cancelAnimationFrame(vadFrame);
 
-        const wasRecording = mediaRecorder?.state === 'recording';
-        if (wasRecording) mediaRecorder.stop();   // → onstop → processGoogleAudio
+        if (mediaRecorder?.state !== 'inactive') mediaRecorder.stop();
         if (vadAudioCtx?.state !== 'closed') { vadAudioCtx.close(); vadAudioCtx = null; }
         vadAnalyser = null;
-
-        // The recorder never started (a silent window): onstop won't fire, so
-        // there's nothing to upload. Drive the next step ourselves.
-        if (!wasRecording) {
-            if (byUser) isListening = false;
-            else        restartGoogleIfNeeded();
-        }
     }
 
     async function processGoogleAudio() {
         if (stoppedByUser) { isListening = false; return; }
         if (audioChunks.length === 0) return;
-        if (!hasSpokenDetected) { restartGoogleIfNeeded(); return; }
+        if (!hasSpokenDetected) {
+            // Silent window: don't upload. Retry a few times, then stop listening
+            // so the mic isn't left open indefinitely. "Listen Again" re-arms it.
+            if (++silentRetries >= MAX_SILENT_RETRIES) {
+                wantListening = false;
+                isListening   = false;
+                setState('idle');
+            } else {
+                restartGoogleIfNeeded();
+            }
+            return;
+        }
 
         setState('processing');
 
@@ -301,6 +298,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     function startListening() {
         if (isBlocked) return;
         wantListening = true;
+        silentRetries = 0;   // fresh, user-initiated attempt
         if (useGoogle) {
             startGoogleListening();
         } else {

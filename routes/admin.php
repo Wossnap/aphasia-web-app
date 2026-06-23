@@ -85,6 +85,7 @@ Route::middleware(['web', 'admin'])->group(function () {
 
     // Speech Attempts Log Management
     Route::get('attempts', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'index'])->name('admin.attempts.index');
+    Route::get('attempts/latest-id', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'latestId'])->name('admin.attempts.latest-id');
     Route::post('attempts/{attempt}/add-transliteration', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'addTransliteration'])->name('admin.attempts.add-transliteration');
     Route::delete('attempts/{attempt}', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'destroy'])->name('admin.attempts.destroy');
 });

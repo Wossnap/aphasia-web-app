@@ -23,7 +23,19 @@ class SpeechAttemptController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        return view('admin.attempts.index', compact('attempts', 'status', 'from', 'to'));
+        // Used by the client to detect new attempts without a disruptive reload.
+        $latestId = SpeechAttempt::max('id') ?? 0;
+
+        return view('admin.attempts.index', compact('attempts', 'status', 'from', 'to', 'latestId'));
+    }
+
+    /**
+     * Lightweight endpoint the attempts page polls to detect new records
+     * without reloading the whole page out from under the admin.
+     */
+    public function latestId()
+    {
+        return response()->json(['latest_id' => SpeechAttempt::max('id') ?? 0]);
     }
 
     public function addTransliteration(SpeechAttempt $attempt)

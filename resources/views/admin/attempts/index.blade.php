@@ -4,6 +4,15 @@
 @section('header', 'Speech Attempts Log')
 
 @section('content')
+    <!-- New-attempts banner: appears when newer records exist; the admin chooses
+         when to refresh, so the page is never yanked out from under them. -->
+    <button id="new-attempts-banner"
+            onclick="window.location.reload()"
+            class="hidden w-full mb-4 px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow flex items-center justify-center gap-2">
+        <i class="fas fa-arrow-up"></i>
+        <span id="new-attempts-text">New attempts available — tap to refresh</span>
+    </button>
+
     <!-- Filters -->
     <form method="GET" class="mb-4 bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-4">
         <div>
@@ -38,19 +47,13 @@
         </div>
     </form>
 
-    <div class="mb-4 flex items-center justify-between">
-        <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
-            <input type="checkbox" id="live-toggle" checked
-                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-            <span class="inline-flex items-center gap-1.5">
-                <span id="live-dot" class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-                Live updates <span class="text-gray-400">(every 5s)</span>
-            </span>
-        </label>
-        <span id="live-countdown" class="text-xs text-gray-400"></span>
+    <div class="mb-4 flex items-center gap-2 text-xs text-gray-400">
+        <span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+        Checking for new attempts every 5s
     </div>
 
-    <div class="bg-white shadow rounded-lg overflow-hidden">
+    {{-- ─────────────── Desktop: table ─────────────── --}}
+    <div class="hidden md:block bg-white shadow rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -68,13 +71,10 @@
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse($attempts as $attempt)
                         <tr>
-                            <!-- Date & Time -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" title="{{ $attempt->created_at }}">
                                 {{ $attempt->created_at->format('M d, Y H:i') }}
                                 <span class="block text-xs text-gray-500">{{ $attempt->created_at->diffForHumans() }}</span>
                             </td>
-
-                            <!-- User -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->user)
                                     <div class="font-medium text-gray-900">{{ $attempt->user->name }}</div>
@@ -83,13 +83,10 @@
                                     <span class="text-gray-400 italic">Anonymous/Guest</span>
                                 @endif
                             </td>
-
-                            <!-- Amharic Word -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->word)
                                     <a href="{{ route('admin.words.edit', $attempt->word) }}"
-                                       class="group inline-flex items-center gap-1.5"
-                                       title="Edit this word">
+                                       class="group inline-flex items-center gap-1.5" title="Edit this word">
                                         <span class="font-bold text-blue-700 group-hover:text-blue-900 group-hover:underline text-lg">{{ $attempt->word->word }}</span>
                                         <i class="fas fa-pen text-xs text-gray-400 group-hover:text-blue-600"></i>
                                     </a>
@@ -98,68 +95,48 @@
                                     <span class="text-red-500 text-sm italic">Deleted Word</span>
                                 @endif
                             </td>
-
-                            <!-- Speech API Result -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 @if($attempt->transcription)
-                                    <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200">
-                                        {{ $attempt->transcription }}
-                                    </span>
+                                    <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200">{{ $attempt->transcription }}</span>
                                 @else
                                     <span class="text-rose-500 italic text-xs">No result / Silenced</span>
                                 @endif
                             </td>
-
-                            <!-- Checked Transliterations -->
                             <td class="px-6 py-4 text-sm text-gray-900">
                                 <div class="flex flex-wrap gap-1 max-w-[250px]">
                                     @if(is_array($attempt->checked_transliterations))
                                         @foreach($attempt->checked_transliterations as $translit)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
-                                                {{ $translit }}
-                                            </span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">{{ $translit }}</span>
                                         @endforeach
                                     @else
                                         <span class="text-gray-400 italic text-xs">—</span>
                                     @endif
                                 </div>
                             </td>
-
-                            <!-- Status Badge -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->is_correct)
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 shadow-sm">
-                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400 animate-pulse" fill="currentColor" viewBox="0 0 8 8">
-                                            <circle cx="4" cy="4" r="3" />
-                                        </svg>
+                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
                                         Correct
                                     </span>
                                 @else
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 shadow-sm">
-                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-red-400" fill="currentColor" viewBox="0 0 8 8">
-                                            <circle cx="4" cy="4" r="3" />
-                                        </svg>
+                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-red-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
                                         Incorrect
                                     </span>
                                 @endif
                             </td>
-
-                            <!-- Audio Playback -->
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->audio_path)
                                     <audio controls class="h-8 max-w-[180px] outline-none">
                                         <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
-                                        Your browser does not support the audio element.
                                     </audio>
                                 @else
                                     <span class="text-gray-400 italic text-xs">No recording</span>
                                 @endif
                             </td>
-
-                            <!-- Actions -->
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end items-center space-x-3">
-                                    <!-- Add to transliterations (only if incorrect and has transcription) -->
                                     @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
                                         <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="inline">
                                             @csrf
@@ -167,12 +144,10 @@
                                                     class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                                     title="Add this API result as a valid pronunciation option"
                                                     onclick="return confirm('Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?')">
-                                                <i class="fas fa-plus mr-1"></i> Accept Pronunciation
+                                                <i class="fas fa-plus mr-1"></i> Accept
                                             </button>
                                         </form>
                                     @endif
-
-                                    <!-- Delete Attempt -->
                                     <form method="POST" action="{{ route('admin.attempts.destroy', $attempt) }}" class="inline">
                                         @csrf
                                         @method('DELETE')
@@ -199,7 +174,6 @@
             </table>
         </div>
 
-        <!-- Pagination -->
         @if($attempts->hasPages())
             <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
                 {{ $attempts->appends(request()->query())->links() }}
@@ -207,51 +181,144 @@
         @endif
     </div>
 
+    {{-- ─────────────── Mobile: collapsible cards ─────────────── --}}
+    <div class="md:hidden space-y-3">
+        @forelse($attempts as $attempt)
+            <details class="bg-white shadow rounded-lg overflow-hidden">
+                <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none">
+                    <div class="min-w-0">
+                        <div class="font-bold text-gray-900 text-lg truncate">
+                            {{ $attempt->word?->word ?? 'Deleted Word' }}
+                        </div>
+                        <div class="text-xs text-gray-500">{{ $attempt->created_at->diffForHumans() }}</div>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        @if($attempt->is_correct)
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Correct</span>
+                        @else
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">Incorrect</span>
+                        @endif
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform details-chevron"></i>
+                    </div>
+                </summary>
+
+                <div class="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3 text-sm">
+                    <div>
+                        <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">User</div>
+                        @if($attempt->user)
+                            <div class="font-medium text-gray-900">{{ $attempt->user->name }}</div>
+                            <div class="text-xs text-gray-500">{{ $attempt->user->email }}</div>
+                        @else
+                            <span class="text-gray-400 italic">Anonymous/Guest</span>
+                        @endif
+                    </div>
+
+                    @if($attempt->word)
+                        <div>
+                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">Word</div>
+                            <a href="{{ route('admin.words.edit', $attempt->word) }}" class="text-blue-700 font-semibold underline">
+                                {{ $attempt->word->word }} <i class="fas fa-pen text-xs"></i>
+                            </a>
+                            <span class="text-xs text-gray-500">— {{ $attempt->word->meaning ?? 'No meaning' }}</span>
+                        </div>
+                    @endif
+
+                    <div>
+                        <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">Speech API Result</div>
+                        @if($attempt->transcription)
+                            <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200">{{ $attempt->transcription }}</span>
+                        @else
+                            <span class="text-rose-500 italic text-xs">No result / Silenced</span>
+                        @endif
+                    </div>
+
+                    <div>
+                        <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Checked Transliterations</div>
+                        <div class="flex flex-wrap gap-1">
+                            @if(is_array($attempt->checked_transliterations) && count($attempt->checked_transliterations))
+                                @foreach($attempt->checked_transliterations as $translit)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">{{ $translit }}</span>
+                                @endforeach
+                            @else
+                                <span class="text-gray-400 italic text-xs">—</span>
+                            @endif
+                        </div>
+                    </div>
+
+                    @if($attempt->audio_path)
+                        <div>
+                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Recording</div>
+                            <audio controls class="h-8 w-full outline-none">
+                                <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
+                            </audio>
+                        </div>
+                    @endif
+
+                    <div class="flex flex-wrap gap-2 pt-1">
+                        @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
+                            <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="flex-1">
+                                @csrf
+                                <button type="submit"
+                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                        onclick="return confirm('Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?')">
+                                    <i class="fas fa-plus mr-1"></i> Accept
+                                </button>
+                            </form>
+                        @endif
+                        <form method="POST" action="{{ route('admin.attempts.destroy', $attempt) }}" class="flex-1">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit"
+                                    class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded border border-red-300 bg-white hover:bg-red-50 text-red-700 shadow-sm"
+                                    onclick="return confirm('Are you sure you want to delete this attempt log entry?')">
+                                <i class="fas fa-trash-alt mr-1"></i> Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </details>
+        @empty
+            <div class="bg-white shadow rounded-lg px-6 py-12 text-center text-sm text-gray-500">
+                <div class="text-4xl text-gray-300 mb-2"><i class="fas fa-microphone-slash"></i></div>
+                <p>No speech attempts recorded yet.</p>
+            </div>
+        @endforelse
+
+        @if($attempts->hasPages())
+            <div class="pt-2">
+                {{ $attempts->appends(request()->query())->links() }}
+            </div>
+        @endif
+    </div>
+
+    <style>
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        details[open] .details-chevron { transform: rotate(180deg); }
+    </style>
+
     <script>
         (function () {
-            const INTERVAL = 5; // seconds
-            const toggle = document.getElementById('live-toggle');
-            const dot = document.getElementById('live-dot');
-            const countdown = document.getElementById('live-countdown');
-            const STORAGE_KEY = 'attempts-live-updates';
+            const latestId = {{ (int) $latestId }};
+            const banner = document.getElementById('new-attempts-banner');
+            const text = document.getElementById('new-attempts-text');
+            const url = "{{ route('admin.attempts.latest-id') }}";
 
-            // Remember the user's preference across reloads.
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved !== null) toggle.checked = saved === '1';
-
-            let remaining = INTERVAL;
-
-            function anyAudioPlaying() {
-                return Array.from(document.querySelectorAll('audio'))
-                    .some(a => !a.paused && !a.ended);
+            async function check() {
+                try {
+                    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.latest_id > latestId) {
+                        const n = data.latest_id - latestId;
+                        text.textContent = n + ' new attempt' + (n === 1 ? '' : 's') + ' available — tap to refresh';
+                        banner.classList.remove('hidden');
+                    }
+                } catch (_) { /* ignore transient network errors */ }
             }
 
-            function render() {
-                const on = toggle.checked;
-                dot.className = 'h-2 w-2 rounded-full ' + (on ? 'bg-green-500 animate-pulse' : 'bg-gray-300');
-                countdown.textContent = on ? ('Refreshing in ' + remaining + 's…') : 'Paused';
-            }
-
-            toggle.addEventListener('change', function () {
-                localStorage.setItem(STORAGE_KEY, toggle.checked ? '1' : '0');
-                remaining = INTERVAL;
-                render();
-            });
-
-            render();
-
-            setInterval(function () {
-                if (!toggle.checked) { render(); return; }
-                // Don't yank the page out from under an audio clip the admin is reviewing.
-                if (anyAudioPlaying()) { remaining = INTERVAL; render(); return; }
-
-                remaining -= 1;
-                if (remaining <= 0) {
-                    window.location.reload();
-                    return;
-                }
-                render();
-            }, 1000);
+            // Poll for new records without ever reloading the page automatically.
+            setInterval(check, 5000);
         })();
     </script>
 @endsection

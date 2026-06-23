@@ -173,11 +173,8 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Level</label>
-                            <select name="levels[]" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                @for($i = 1; $i <= 10; $i++)
-                                    <option value="{{ $i }}" {{ $i == 1 ? 'selected' : '' }}>Level {{ $i }}</option>
-                                @endfor
-                            </select>
+                            <input type="number" name="levels[]" min="1" step="1" value="1"
+                                   class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                         </div>
                     </div>
                 </div>

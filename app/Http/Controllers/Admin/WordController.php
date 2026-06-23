@@ -68,7 +68,7 @@ class WordController extends Controller
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
-            'levels.*' => 'integer|min:1|max:10'
+            'levels.*' => 'integer|min:1'
         ]);
 
         // Process transliterations
@@ -162,7 +162,7 @@ class WordController extends Controller
             'categories' => 'array',
             'categories.*' => 'exists:categories,id',
             'levels' => 'array',
-            'levels.*' => 'integer|min:1|max:10'
+            'levels.*' => 'integer|min:1'
         ]);
 
         // Process transliterations

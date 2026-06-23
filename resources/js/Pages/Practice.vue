@@ -154,6 +154,16 @@
                     </button>
 
                     <button
+                        v-if="prevLevel"
+                        class="btn btn-accent btn-lg"
+                        :disabled="speechState === 'loading'"
+                        @click="goToPrevLevel"
+                    >
+                        <i class="fas fa-arrow-left btn-icon"></i>
+                        Prev Level
+                    </button>
+
+                    <button
                         v-if="nextLevel"
                         class="btn btn-accent btn-lg"
                         :disabled="speechState === 'loading'"
@@ -418,21 +428,31 @@ function togglePause() {
     }
 }
 
-// Next level — only shown when practising a specific level that has a successor.
+// Adjacent levels — only shown when practising a specific level that has a
+// predecessor / successor in the ordered level list.
 const nextLevel = computed(() => {
     if (!currentLevel.value || !levels.value.length) return null;
     const idx = levels.value.findIndex(l => l.level === currentLevel.value);
     return idx !== -1 && idx < levels.value.length - 1 ? levels.value[idx + 1] : null;
 });
 
-async function goToNextLevel() {
-    if (!nextLevel.value) return;
-    currentLevel.value = nextLevel.value.level;
+const prevLevel = computed(() => {
+    if (!currentLevel.value || !levels.value.length) return null;
+    const idx = levels.value.findIndex(l => l.level === currentLevel.value);
+    return idx > 0 ? levels.value[idx - 1] : null;
+});
+
+async function goToLevel(target) {
+    if (!target) return;
+    currentLevel.value = target.level;
     if (selectedCategory.value?.slug) {
-        syncUrl(`/${selectedCategory.value.slug}/level-${nextLevel.value.level}`);
+        syncUrl(`/${selectedCategory.value.slug}/level-${target.level}`);
     }
     await launchPractice();
 }
+
+const goToNextLevel = () => goToLevel(nextLevel.value);
+const goToPrevLevel = () => goToLevel(prevLevel.value);
 
 // Stop returns to the level grid of the current category (or to the category
 // list when practicing the random pool, which has no addressable location).

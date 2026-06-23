@@ -4,15 +4,6 @@
 @section('header', 'Speech Attempts Log')
 
 @section('content')
-    <!-- New-attempts banner: appears when newer records exist; the admin chooses
-         when to refresh, so the page is never yanked out from under them. -->
-    <button id="new-attempts-banner"
-            onclick="window.location.reload()"
-            class="hidden w-full mb-4 px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow flex items-center justify-center gap-2">
-        <i class="fas fa-arrow-up"></i>
-        <span id="new-attempts-text">New attempts available — tap to refresh</span>
-    </button>
-
     <!-- Filters -->
     <form method="GET" class="mb-4 bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-4">
         <div>
@@ -48,10 +39,11 @@
     </form>
 
     <div class="mb-4 flex items-center gap-2 text-xs text-gray-400">
-        <span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-        Checking for new attempts every 5s
+        <span id="live-dot" class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+        <span id="live-status">Live — refreshing in 5s</span>
     </div>
 
+    <div id="attempts-list">
     {{-- ─────────────── Desktop: table ─────────────── --}}
     <div class="hidden md:block bg-white shadow rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
@@ -184,7 +176,7 @@
     {{-- ─────────────── Mobile: collapsible cards ─────────────── --}}
     <div class="md:hidden space-y-3">
         @forelse($attempts as $attempt)
-            <details class="bg-white shadow rounded-lg overflow-hidden">
+            <details data-key="{{ $attempt->id }}" class="bg-white shadow rounded-lg overflow-hidden">
                 <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none">
                     <div class="min-w-0">
                         <div class="font-bold text-gray-900 text-lg truncate">
@@ -290,6 +282,7 @@
             </div>
         @endif
     </div>
+    </div>{{-- /#attempts-list --}}
 
     <style>
         details > summary { list-style: none; }
@@ -299,26 +292,79 @@
 
     <script>
         (function () {
-            const latestId = {{ (int) $latestId }};
-            const banner = document.getElementById('new-attempts-banner');
-            const text = document.getElementById('new-attempts-text');
-            const url = "{{ route('admin.attempts.latest-id') }}";
+            const INTERVAL = 5; // seconds between silent refreshes
+            const container = document.getElementById('attempts-list');
+            const status = document.getElementById('live-status');
+            const dot = document.getElementById('live-dot');
+            let remaining = INTERVAL;
+            let busy = false;
 
-            async function check() {
-                try {
-                    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                    if (!res.ok) return;
-                    const data = await res.json();
-                    if (data.latest_id > latestId) {
-                        const n = data.latest_id - latestId;
-                        text.textContent = n + ' new attempt' + (n === 1 ? '' : 's') + ' available — tap to refresh';
-                        banner.classList.remove('hidden');
-                    }
-                } catch (_) { /* ignore transient network errors */ }
+            function anyAudioPlaying() {
+                return Array.from(container.querySelectorAll('audio'))
+                    .some(a => !a.paused && !a.ended);
             }
 
-            // Poll for new records without ever reloading the page automatically.
-            setInterval(check, 5000);
+            // Don't disrupt the admin: skip a silent swap while they have a card
+            // open or are interacting with a control inside the list.
+            function userBusy() {
+                if (anyAudioPlaying()) return true;
+                const active = document.activeElement;
+                if (active && container.contains(active)) return true;
+                return false;
+            }
+
+            async function refresh() {
+                if (busy) return;
+                busy = true;
+                try {
+                    const res = await fetch(window.location.href, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    });
+                    if (!res.ok) return;
+                    const html = await res.text();
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const fresh = doc.getElementById('attempts-list');
+                    if (!fresh) return;
+
+                    // Preserve which mobile cards are expanded across the swap.
+                    const open = new Set(
+                        Array.from(container.querySelectorAll('details[data-key]'))
+                            .filter(d => d.open)
+                            .map(d => d.getAttribute('data-key'))
+                    );
+
+                    // Swap content in place — page scroll position is untouched.
+                    container.innerHTML = fresh.innerHTML;
+
+                    container.querySelectorAll('details[data-key]').forEach(d => {
+                        if (open.has(d.getAttribute('data-key'))) d.open = true;
+                    });
+                } catch (_) {
+                    /* ignore transient network errors; try again next tick */
+                } finally {
+                    busy = false;
+                }
+            }
+
+            function tick() {
+                if (userBusy()) {
+                    remaining = INTERVAL;
+                    status.textContent = 'Live — paused (in use)';
+                    dot.className = 'h-2 w-2 rounded-full bg-amber-400';
+                    return;
+                }
+                dot.className = 'h-2 w-2 rounded-full bg-green-500 animate-pulse';
+                remaining -= 1;
+                if (remaining <= 0) {
+                    remaining = INTERVAL;
+                    status.textContent = 'Refreshing…';
+                    refresh().then(() => { status.textContent = 'Live — refreshing in ' + INTERVAL + 's'; });
+                    return;
+                }
+                status.textContent = 'Live — refreshing in ' + remaining + 's';
+            }
+
+            setInterval(tick, 1000);
         })();
     </script>
 @endsection

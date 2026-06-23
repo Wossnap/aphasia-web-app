@@ -4,6 +4,18 @@
 @section('header', 'Speech Attempts Log')
 
 @section('content')
+    <div class="mb-4 flex items-center justify-between">
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" id="live-toggle" checked
+                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <span class="inline-flex items-center gap-1.5">
+                <span id="live-dot" class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                Live updates <span class="text-gray-400">(every 5s)</span>
+            </span>
+        </label>
+        <span id="live-countdown" class="text-xs text-gray-400"></span>
+    </div>
+
     <div class="bg-white shadow rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -160,4 +172,52 @@
             </div>
         @endif
     </div>
+
+    <script>
+        (function () {
+            const INTERVAL = 5; // seconds
+            const toggle = document.getElementById('live-toggle');
+            const dot = document.getElementById('live-dot');
+            const countdown = document.getElementById('live-countdown');
+            const STORAGE_KEY = 'attempts-live-updates';
+
+            // Remember the user's preference across reloads.
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved !== null) toggle.checked = saved === '1';
+
+            let remaining = INTERVAL;
+
+            function anyAudioPlaying() {
+                return Array.from(document.querySelectorAll('audio'))
+                    .some(a => !a.paused && !a.ended);
+            }
+
+            function render() {
+                const on = toggle.checked;
+                dot.className = 'h-2 w-2 rounded-full ' + (on ? 'bg-green-500 animate-pulse' : 'bg-gray-300');
+                countdown.textContent = on ? ('Refreshing in ' + remaining + 's…') : 'Paused';
+            }
+
+            toggle.addEventListener('change', function () {
+                localStorage.setItem(STORAGE_KEY, toggle.checked ? '1' : '0');
+                remaining = INTERVAL;
+                render();
+            });
+
+            render();
+
+            setInterval(function () {
+                if (!toggle.checked) { render(); return; }
+                // Don't yank the page out from under an audio clip the admin is reviewing.
+                if (anyAudioPlaying()) { remaining = INTERVAL; render(); return; }
+
+                remaining -= 1;
+                if (remaining <= 0) {
+                    window.location.reload();
+                    return;
+                }
+                render();
+            }, 1000);
+        })();
+    </script>
 @endsection

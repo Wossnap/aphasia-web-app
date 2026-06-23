@@ -38,9 +38,16 @@
         </div>
     </form>
 
-    <div class="mb-4 flex items-center gap-2 text-xs text-gray-400">
-        <span id="live-dot" class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-        <span id="live-status">Live — refreshing in 5s</span>
+    <div class="mb-4 flex items-center justify-between gap-3">
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" id="live-toggle" checked
+                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            Auto-refresh
+        </label>
+        <span class="flex items-center gap-2 text-xs text-gray-400">
+            <span id="live-dot" class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span id="live-status">Live — refreshing in 5s</span>
+        </span>
     </div>
 
     <div id="attempts-list">
@@ -296,8 +303,22 @@
             const container = document.getElementById('attempts-list');
             const status = document.getElementById('live-status');
             const dot = document.getElementById('live-dot');
+            const toggle = document.getElementById('live-toggle');
+            const STORAGE_KEY = 'attempts-auto-refresh';
             let remaining = INTERVAL;
             let busy = false;
+
+            // Remember the on/off preference across page loads.
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved !== null) toggle.checked = saved === '1';
+            toggle.addEventListener('change', function () {
+                localStorage.setItem(STORAGE_KEY, toggle.checked ? '1' : '0');
+                remaining = INTERVAL;
+                if (!toggle.checked) {
+                    status.textContent = 'Auto-refresh off';
+                    dot.className = 'h-2 w-2 rounded-full bg-gray-300';
+                }
+            });
 
             function anyAudioPlaying() {
                 return Array.from(container.querySelectorAll('audio'))
@@ -347,6 +368,11 @@
             }
 
             function tick() {
+                if (!toggle.checked) {
+                    status.textContent = 'Auto-refresh off';
+                    dot.className = 'h-2 w-2 rounded-full bg-gray-300';
+                    return;
+                }
                 if (userBusy()) {
                     remaining = INTERVAL;
                     status.textContent = 'Live — paused (in use)';

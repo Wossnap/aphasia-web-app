@@ -8,13 +8,22 @@ use Illuminate\Http\Request;
 
 class SpeechAttemptController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $attempts = SpeechAttempt::with(['user', 'word'])
-            ->latest()
-            ->paginate(50);
+        $status = $request->query('status'); // 'correct' | 'incorrect' | null (all)
+        $from = $request->query('from');     // Y-m-d
+        $to = $request->query('to');         // Y-m-d
 
-        return view('admin.attempts.index', compact('attempts'));
+        $attempts = SpeechAttempt::with(['user', 'word'])
+            ->when($status === 'correct', fn ($q) => $q->where('is_correct', true))
+            ->when($status === 'incorrect', fn ($q) => $q->where('is_correct', false))
+            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+            ->latest()
+            ->paginate(50)
+            ->withQueryString();
+
+        return view('admin.attempts.index', compact('attempts', 'status', 'from', 'to'));
     }
 
     public function addTransliteration(SpeechAttempt $attempt)

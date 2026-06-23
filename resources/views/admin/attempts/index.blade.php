@@ -4,6 +4,40 @@
 @section('header', 'Speech Attempts Log')
 
 @section('content')
+    <!-- Filters -->
+    <form method="GET" class="mb-4 bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-4">
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Status</label>
+            <select name="status" class="block w-40 border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                <option value="">All</option>
+                <option value="correct" {{ $status === 'correct' ? 'selected' : '' }}>Correct</option>
+                <option value="incorrect" {{ $status === 'incorrect' ? 'selected' : '' }}>Incorrect</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">From</label>
+            <input type="date" name="from" value="{{ $from }}"
+                   class="block border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">To</label>
+            <input type="date" name="to" value="{{ $to }}"
+                   class="block border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div class="flex items-center gap-2">
+            <button type="submit"
+                    class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                <i class="fas fa-filter mr-1.5"></i> Filter
+            </button>
+            @if($status || $from || $to)
+                <a href="{{ route('admin.attempts.index') }}"
+                   class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
+                    Clear
+                </a>
+            @endif
+        </div>
+    </form>
+
     <div class="mb-4 flex items-center justify-between">
         <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
             <input type="checkbox" id="live-toggle" checked

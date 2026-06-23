@@ -49,10 +49,27 @@ class SpeechController extends Controller
 
         $transcript = $this->speechService->transcribe($audioBase64);
 
+        // Computed against the live DB so a just-accepted transliteration counts
+        // immediately, even for a browser still holding a stale word snapshot.
+        $isCorrect = false;
+        $transliterations = null;
+
         $wordId = $request->input('word_id');
         if ($wordId) {
             $word = \App\Models\AmharicWord::find($wordId);
             if ($word) {
+                $transliterations = $word->transliterations ?? [];
+
+                if ($transcript !== null) {
+                    $transcriptClean = trim(strtolower($transcript));
+                    foreach ($transliterations as $transliteration) {
+                        if (str_contains($transcriptClean, strtolower(trim($transliteration)))) {
+                            $isCorrect = true;
+                            break;
+                        }
+                    }
+                }
+
                 // Ensure attempts directory exists
                 $attemptsDir = public_path('audio/attempts');
                 if (!file_exists($attemptsDir)) {
@@ -62,22 +79,11 @@ class SpeechController extends Controller
                 $filename = \Illuminate\Support\Str::uuid() . '.webm';
                 $file->move($attemptsDir, $filename);
 
-                $isCorrect = false;
-                if ($transcript !== null) {
-                    $transcriptClean = trim(strtolower($transcript));
-                    foreach ($word->transliterations as $transliteration) {
-                        if (str_contains($transcriptClean, strtolower(trim($transliteration)))) {
-                            $isCorrect = true;
-                            break;
-                        }
-                    }
-                }
-
                 \App\Models\SpeechAttempt::create([
                     'user_id' => auth()->id(),
                     'amharic_word_id' => $word->id,
                     'transcription' => $transcript,
-                    'checked_transliterations' => $word->transliterations,
+                    'checked_transliterations' => $transliterations,
                     'audio_path' => $filename,
                     'is_correct' => $isCorrect,
                 ]);
@@ -86,11 +92,15 @@ class SpeechController extends Controller
 
         if ($transcript === null) {
             return response()->json([
-                'results' => []
+                'results' => [],
+                'is_correct' => false,
+                'transliterations' => $transliterations,
             ]);
         }
 
         return response()->json([
+            'is_correct' => $isCorrect,
+            'transliterations' => $transliterations,
             'results' => [
                 [
                     'alternatives' => [
@@ -102,6 +112,6 @@ class SpeechController extends Controller
                 ]
             ]
         ]);
-        
+
     }
 }

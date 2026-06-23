@@ -510,13 +510,23 @@ function onPopState() {
 }
 
 // ─── Speech result handling ───────────────────────────────────────────────────
-async function handleSpokenResult(spoken) {
+async function handleSpokenResult(spoken, serverVerdict = null) {
     spokenWord.value  = spoken;
     speechState.value = 'processing';
 
-    const isCorrect = currentWord.value?.transliterations?.some(t =>
-        spoken.toLowerCase().includes(t.toLowerCase())
-    ) ?? false;
+    // Keep the in-memory word in sync with the DB so a freshly accepted
+    // transliteration is reflected immediately for the rest of this session.
+    if (serverVerdict?.transliterations && currentWord.value) {
+        currentWord.value.transliterations = serverVerdict.transliterations;
+    }
+
+    // Trust the server's verdict (checked against the live DB) when present;
+    // fall back to a local match for the browser-speech path.
+    const isCorrect = typeof serverVerdict?.isCorrect === 'boolean'
+        ? serverVerdict.isCorrect
+        : (currentWord.value?.transliterations?.some(t =>
+              spoken.toLowerCase().includes(t.toLowerCase())
+          ) ?? false);
 
     if (isCorrect) {
         feedback.value = 'success';

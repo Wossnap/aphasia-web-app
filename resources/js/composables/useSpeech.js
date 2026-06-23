@@ -263,7 +263,12 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
             const data = JSON.parse(text);
             if (data.results?.[0]?.alternatives?.[0]?.transcript) {
                 const spoken = data.results[0].alternatives[0].transcript.trim();
-                onResult(spoken);
+                // Server checked against the live DB (fresh transliterations), so
+                // pass its verdict along to avoid a stale in-browser snapshot.
+                onResult(spoken, {
+                    isCorrect: data.is_correct,
+                    transliterations: data.transliterations,
+                });
             } else {
                 restartGoogleIfNeeded();
             }

@@ -4,6 +4,9 @@
         <transition name="slide-left">
             <div v-if="screen === 'settings'" class="screen settings-screen" key="settings">
                 <div class="settings-inner">
+                    <button class="logout-btn" @click="handleLogout">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
                     <h1 class="app-title">Amharic Practice</h1>
                     <p class="app-subtitle">Hear a word. Say it back.</p>
 
@@ -214,6 +217,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { useSpeech } from '../composables/useSpeech';
 
 const props = defineProps({
@@ -567,6 +571,10 @@ onUnmounted(() => {
     window.removeEventListener('popstate', onPopState);
 });
 
+function handleLogout() {
+    router.post('/logout');
+}
+
 function delay(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
@@ -607,6 +615,31 @@ function delay(ms) {
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+    position: relative;
+}
+
+.logout-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.6);
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
 }
 
 .app-title {

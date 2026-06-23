@@ -49,15 +49,47 @@ class SpeechController extends Controller
 
         $transcript = $this->speechService->transcribe($audioBase64);
 
+        $wordId = $request->input('word_id');
+        if ($wordId) {
+            $word = \App\Models\AmharicWord::find($wordId);
+            if ($word) {
+                // Ensure attempts directory exists
+                $attemptsDir = public_path('audio/attempts');
+                if (!file_exists($attemptsDir)) {
+                    mkdir($attemptsDir, 0755, true);
+                }
+
+                $filename = \Illuminate\Support\Str::uuid() . '.webm';
+                $file->move($attemptsDir, $filename);
+
+                $isCorrect = false;
+                if ($transcript !== null) {
+                    $transcriptClean = trim(strtolower($transcript));
+                    foreach ($word->transliterations as $transliteration) {
+                        if (str_contains($transcriptClean, strtolower(trim($transliteration)))) {
+                            $isCorrect = true;
+                            break;
+                        }
+                    }
+                }
+
+                \App\Models\SpeechAttempt::create([
+                    'user_id' => auth()->id(),
+                    'amharic_word_id' => $word->id,
+                    'transcription' => $transcript,
+                    'checked_transliterations' => $word->transliterations,
+                    'audio_path' => $filename,
+                    'is_correct' => $isCorrect,
+                ]);
+            }
+        }
+
         if ($transcript === null) {
             return response()->json([
                 'results' => []
             ]);
         }
 
-        // Return a similar structure to the original google API so JS doesn't have to change much, or just a simple string.
-        // the original google API returns an array. Let's return what JS needs.
-        // wait, JS expects pure string: JSON.parse(response).transcript might be nice.
         return response()->json([
             'results' => [
                 [

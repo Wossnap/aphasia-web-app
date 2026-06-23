@@ -7,6 +7,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
     // Per-word engine override ('v1'|'v2') for the current word, or null to let the
     // server fall back to the live .env default. Set in playWordAndListen().
     let activeVersion = null;
+    let activeWordId  = null;
 
     let recognition      = null;
     let persistentStream = null;
@@ -243,6 +244,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         // Only send a version when this word overrides the engine; otherwise the
         // server picks the current .env default (no stale page-baked value).
         if (activeVersion) formData.append('version', activeVersion);
+        if (activeWordId) formData.append('word_id', activeWordId);
 
         try {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -361,6 +363,8 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
         activeVersion = (word?.engine === 'v1' || word?.engine === 'v2')
             ? word.engine
             : null;
+
+        activeWordId = word?.id ?? null;
 
         isBlocked = true;
         setState('playing');

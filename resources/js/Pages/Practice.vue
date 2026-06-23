@@ -153,25 +153,27 @@
                         Next Word
                     </button>
 
-                    <button
-                        v-if="prevLevel"
-                        class="btn btn-accent btn-lg"
-                        :disabled="speechState === 'loading'"
-                        @click="goToPrevLevel"
-                    >
-                        <i class="fas fa-arrow-left btn-icon"></i>
-                        Prev Level
-                    </button>
+                    <div v-if="prevLevel || nextLevel" class="level-nav">
+                        <button
+                            v-if="prevLevel"
+                            class="btn btn-accent btn-lg"
+                            :disabled="speechState === 'loading'"
+                            @click="goToPrevLevel"
+                        >
+                            <i class="fas fa-arrow-left btn-icon"></i>
+                            Prev Level
+                        </button>
 
-                    <button
-                        v-if="nextLevel"
-                        class="btn btn-accent btn-lg"
-                        :disabled="speechState === 'loading'"
-                        @click="goToNextLevel"
-                    >
-                        <i class="fas fa-arrow-right btn-icon"></i>
-                        Next Level
-                    </button>
+                        <button
+                            v-if="nextLevel"
+                            class="btn btn-accent btn-lg"
+                            :disabled="speechState === 'loading'"
+                            @click="goToNextLevel"
+                        >
+                            <i class="fas fa-arrow-right btn-icon"></i>
+                            Next Level
+                        </button>
+                    </div>
 
                     <button class="btn btn-danger btn-lg" @click="stopPractice">
                         <i class="fas fa-stop btn-icon"></i>
@@ -1083,6 +1085,17 @@ function delay(ms) {
     gap: 0.75rem;
     padding: 1rem 1.5rem max(1.5rem, env(safe-area-inset-bottom));
     flex-shrink: 0;
+}
+
+/* Prev / Next level sit side by side, splitting the row evenly. */
+.level-nav {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.level-nav .btn {
+    flex: 1;
+    min-width: 0;
 }
 
 /* ── Feedback overlay ─────────────────────────────────────────── */

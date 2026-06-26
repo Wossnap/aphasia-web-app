@@ -1,4 +1,4 @@
-const CACHE_NAME = 'amharic-practice-v2';
+const CACHE_NAME = 'amharic-practice-v3';
 
 // Static assets to cache (JS/CSS have content hashes, so they're safe to cache aggressively)
 const ASSETS_TO_CACHE = [
@@ -24,11 +24,23 @@ self.addEventListener('activate', event => {
     );
 });
 
+// Only full, basic 200 responses can be stored in the Cache API.
+// Range requests return 206 (Partial Content), which throws on cache.put.
+function cacheableResponse(response) {
+    return response &&
+        response.status === 200 &&
+        response.type !== 'opaqueredirect';
+}
+
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
     // API calls: always network, never cache
     if (url.pathname.startsWith('/api/')) return;
+
+    // Range requests (audio/video seeking) must go straight to the network
+    // so the browser receives the 206 partial response it expects.
+    if (event.request.headers.has('range')) return;
 
     // Audio/GIF/image files: cache-first (they don't change once uploaded)
     if (url.pathname.startsWith('/audio/') ||
@@ -37,8 +49,10 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             caches.match(event.request).then(cached =>
                 cached || fetch(event.request).then(response => {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    if (cacheableResponse(response)) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
                     return response;
                 })
             )
@@ -51,8 +65,10 @@ self.addEventListener('fetch', event => {
         event.respondWith(
             caches.match(event.request).then(cached =>
                 cached || fetch(event.request).then(response => {
-                    const clone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    if (cacheableResponse(response)) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
                     return response;
                 })
             )

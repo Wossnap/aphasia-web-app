@@ -127,7 +127,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->audio_path)
-                                    <audio controls class="h-8 max-w-[180px] outline-none">
+                                    <audio controls preload="none" class="h-8 max-w-[180px] outline-none">
                                         <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
                                     </audio>
                                 @else
@@ -247,7 +247,7 @@
                     @if($attempt->audio_path)
                         <div>
                             <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Recording</div>
-                            <audio controls class="h-8 w-full outline-none">
+                            <audio controls preload="none" class="h-8 w-full outline-none">
                                 <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
                             </audio>
                         </div>

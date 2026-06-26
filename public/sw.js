@@ -38,13 +38,18 @@ self.addEventListener('fetch', event => {
     // API calls: always network, never cache
     if (url.pathname.startsWith('/api/')) return;
 
-    // Range requests (audio/video seeking) must go straight to the network
-    // so the browser receives the 206 partial response it expects.
+    // Audio: never let the service worker touch it. Native <audio>/<video>
+    // elements stream via Range requests; intercepting them makes media stall
+    // for minutes before playing. Pass straight through to the network so the
+    // browser gets its native 206 partial responses.
+    if (url.pathname.startsWith('/audio/')) return;
+
+    // Any other range request (video seeking, etc.) also goes straight to the
+    // network so the browser receives the 206 partial response it expects.
     if (event.request.headers.has('range')) return;
 
-    // Audio/GIF/image files: cache-first (they don't change once uploaded)
-    if (url.pathname.startsWith('/audio/') ||
-        url.pathname.startsWith('/gifs/')  ||
+    // GIF/image files: cache-first (they don't change once uploaded)
+    if (url.pathname.startsWith('/gifs/')  ||
         url.pathname.startsWith('/images/')) {
         event.respondWith(
             caches.match(event.request).then(cached =>

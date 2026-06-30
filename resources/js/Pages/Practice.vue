@@ -1096,6 +1096,17 @@ function delay(ms) {
 .level-nav .btn {
     flex: 1;
     min-width: 0;
+    /* Keep the label on a single line on narrow phones (e.g. Galaxy A32);
+       shrink the inner gap and padding so both buttons fit the half-row. */
+    white-space: nowrap;
+    gap: 0.4rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 1.05rem;
+}
+
+.level-nav .btn-icon {
+    flex-shrink: 0;
 }
 
 /* ── Feedback overlay ─────────────────────────────────────────── */

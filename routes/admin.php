@@ -70,4 +70,6 @@ Route::middleware(['web', 'admin'])->group(function () {
 
     // Per-word progress tracking
     Route::get('word-progress', [\App\Http\Controllers\Admin\WordProgressController::class, 'index'])->name('admin.word-progress.index');
+    Route::get('word-progress/categories', [\App\Http\Controllers\Admin\WordProgressController::class, 'categories'])->name('admin.word-progress.categories');
+    Route::get('word-progress/levels', [\App\Http\Controllers\Admin\WordProgressController::class, 'levels'])->name('admin.word-progress.levels');
 });

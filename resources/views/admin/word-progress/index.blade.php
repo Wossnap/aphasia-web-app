@@ -26,12 +26,21 @@
                 'emptyLabel' => 'All words',
             ])
         </div>
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Status</label>
+            <select name="status" class="block w-44 border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                <option value="">All statuses</option>
+                <option value="needs_practice" {{ $status === 'needs_practice' ? 'selected' : '' }}>Needs Practice</option>
+                <option value="improving" {{ $status === 'improving' ? 'selected' : '' }}>Improving</option>
+                <option value="mastered" {{ $status === 'mastered' ? 'selected' : '' }}>Mastered</option>
+            </select>
+        </div>
         <div class="flex items-center gap-2">
             <button type="submit"
                     class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                 <i class="fas fa-filter mr-1.5"></i> Filter
             </button>
-            @if($userId || $wordId)
+            @if($userId || $wordId || $status)
                 <a href="{{ route('admin.word-progress.index') }}"
                    class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
                     Clear
@@ -58,6 +67,13 @@
         </div>
 
         <!-- Categories: focus on / doing great -->
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Categories</h2>
+            <a href="{{ route('admin.word-progress.categories', request()->only('user_id', 'word_id')) }}"
+               class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                View full list <i class="fas fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div class="bg-rose-50 border border-rose-200 rounded-lg p-4">
                 <h2 class="text-sm font-bold text-rose-800 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -101,6 +117,13 @@
         </div>
 
         <!-- Levels: focus on / doing great (e.g. the ሀ-family vs the ለ-family within Fidel) -->
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Levels</h2>
+            <a href="{{ route('admin.word-progress.levels', request()->only('user_id', 'word_id')) }}"
+               class="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                View full list <i class="fas fa-arrow-right text-[10px]"></i>
+            </a>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div class="bg-rose-50 border border-rose-200 rounded-lg p-4">
                 <h2 class="text-sm font-bold text-rose-800 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -144,6 +167,10 @@
         </div>
 
         <!-- Words: focus on next / doing great -->
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">Words</h2>
+            <span class="text-xs text-gray-400">Full list in the table below</span>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="bg-rose-50 border border-rose-200 rounded-lg p-4">
                 <h2 class="text-sm font-bold text-rose-800 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -204,7 +231,11 @@
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amharic Word</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <a href="{{ request()->fullUrlWithQuery(['sort' => $sort === 'asc' ? 'desc' : 'asc']) }}" class="inline-flex items-center gap-1 hover:text-gray-700">
+                                Score <i class="fas fa-sort-{{ $sort === 'asc' ? 'up' : 'down' }} text-[10px]"></i>
+                            </a>
+                        </th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recent Accuracy</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trend</th>
@@ -238,13 +269,7 @@
                                 {{ $row['score'] }}/10
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                @if($row['status'] === 'mastered')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Mastered</span>
-                                @elseif($row['status'] === 'improving')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">Improving</span>
-                                @else
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-800 border border-rose-200">Needs Practice</span>
-                                @endif
+                                @include('admin.partials.status-badge', ['status' => $row['status']])
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {{ $row['accuracy'] }}% <span class="text-xs text-gray-500">({{ $row['correct'] }}/{{ $row['attempts'] }})</span>
@@ -299,13 +324,7 @@
                     <div class="text-lg font-bold text-gray-900 flex-shrink-0">{{ $row['score'] }}/10</div>
                 </div>
                 <div class="flex items-center gap-2 flex-wrap">
-                    @if($row['status'] === 'mastered')
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Mastered</span>
-                    @elseif($row['status'] === 'improving')
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">Improving</span>
-                    @else
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 border border-rose-200">Needs Practice</span>
-                    @endif
+                    @include('admin.partials.status-badge', ['status' => $row['status']])
                     <span class="text-xs text-gray-500">{{ $row['accuracy'] }}% ({{ $row['correct'] }}/{{ $row['attempts'] }})</span>
                 </div>
             </div>

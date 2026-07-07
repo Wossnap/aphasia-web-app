@@ -268,6 +268,7 @@ export function useSpeech({ speechDriver, onResult, onStateChange }) {
                 onResult(spoken, {
                     isCorrect: data.is_correct,
                     transliterations: data.transliterations,
+                    progress: data.progress,
                 });
             } else {
                 restartGoogleIfNeeded();

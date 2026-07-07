@@ -53,6 +53,7 @@ class SpeechController extends Controller
         // immediately, even for a browser still holding a stale word snapshot.
         $isCorrect = false;
         $transliterations = null;
+        $progress = null;
 
         $wordId = $request->input('word_id');
         if ($wordId) {
@@ -87,6 +88,10 @@ class SpeechController extends Controller
                     'audio_path' => $filename,
                     'is_correct' => $isCorrect,
                 ]);
+
+                if (auth()->check()) {
+                    $progress = \App\Models\SpeechAttempt::progressFor(auth()->id(), $word->id);
+                }
             }
         }
 
@@ -95,12 +100,14 @@ class SpeechController extends Controller
                 'results' => [],
                 'is_correct' => false,
                 'transliterations' => $transliterations,
+                'progress' => $progress,
             ]);
         }
 
         return response()->json([
             'is_correct' => $isCorrect,
             'transliterations' => $transliterations,
+            'progress' => $progress,
             'results' => [
                 [
                     'alternatives' => [

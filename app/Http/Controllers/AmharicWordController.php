@@ -94,7 +94,8 @@ class AmharicWordController extends Controller
             'gif_path'   => $word->gif_path,
             'image_path' => $word->image_path,
             'show_in_random' => $word->show_in_random,
-            'engine' => $word->engine
+            'engine' => $word->engine,
+            'progress' => auth()->check() ? \App\Models\SpeechAttempt::progressFor(auth()->id(), $word->id) : null,
         ]);
     }
 

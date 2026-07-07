@@ -53,4 +53,19 @@ return [
             : null,
     ],
 
+    'word_progress' => [
+        // How many of the most recent practice sessions (1 session = 1 calendar
+        // day of attempts) feed into the score and mastery check.
+        'session_window' => env('WORD_PROGRESS_SESSION_WINDOW', 5),
+
+        // Accuracy (0-1) a session must hit for "mastered" to consider it a pass.
+        'mastery_threshold' => (float) env('WORD_PROGRESS_MASTERY_THRESHOLD', 0.8),
+
+        // How many of the most recent sessions must each clear mastery_threshold.
+        'mastery_sessions' => env('WORD_PROGRESS_MASTERY_SESSIONS', 2),
+
+        // Minimum score (0-10) to be "improving" instead of "needs_practice".
+        'improving_score' => env('WORD_PROGRESS_IMPROVING_SCORE', 5),
+    ],
+
 ];

@@ -126,6 +126,14 @@
                         <span class="amharic-word">{{ currentWord?.word ?? '…' }}</span>
                     </div>
 
+                    <!-- Subtle per-word progress: hidden until the user has actually
+                         attempted this word (nothing to show for a fresh word). -->
+                    <div v-if="wordProgress" class="progress-badge" :class="`progress-${wordProgress.status}`">
+                        <span class="progress-score">{{ wordProgress.score }}/10</span>
+                        <i v-if="wordProgress.trend === 'up'" class="fas fa-arrow-trend-up progress-trend"></i>
+                        <i v-else-if="wordProgress.trend === 'down'" class="fas fa-arrow-trend-down progress-trend"></i>
+                    </div>
+
                     <!-- Only show what was said in the body when it was WRONG -->
                     <div v-if="spokenWord && feedback === 'error'" class="spoken-display">
                         <span class="spoken-label">You said:</span>
@@ -246,6 +254,7 @@ const props = defineProps({
 const screen          = ref('settings');
 const speechState     = ref('idle');   // idle | loading | playing | listening | processing
 const currentWord     = ref(null);
+const wordProgress    = ref(null); // this user's recent-session score for currentWord, or null if never attempted
 const spokenWord      = ref('');
 const feedback        = ref(null);     // null | 'success' | 'error'
 const selectedCategory = ref(null);
@@ -389,6 +398,7 @@ async function loadWord() {
     }
 
     currentWord.value = word;
+    wordProgress.value = word.progress ?? null;
     spokenWord.value  = '';
     setMedia(word);
 }
@@ -461,6 +471,7 @@ const goToPrevLevel = () => goToLevel(prevLevel.value);
 function stopPractice() {
     stopAll();
     currentWord.value = null;
+    wordProgress.value = null;
     spokenWord.value  = '';
     feedback.value    = null;
     speechState.value = 'idle';
@@ -540,6 +551,10 @@ async function handleSpokenResult(spoken, serverVerdict = null) {
     // transliteration is reflected immediately for the rest of this session.
     if (serverVerdict?.transliterations && currentWord.value) {
         currentWord.value.transliterations = serverVerdict.transliterations;
+    }
+
+    if (serverVerdict && 'progress' in serverVerdict) {
+        wordProgress.value = serverVerdict.progress;
     }
 
     // Trust the server's verdict (checked against the live DB) when present;
@@ -1064,6 +1079,23 @@ function delay(ms) {
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
+
+.progress-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.progress-mastered      { background: rgba(34,197,94,0.15);  color: #86EFAC; border-color: rgba(34,197,94,0.3); }
+.progress-improving     { background: rgba(245,158,11,0.15); color: #FCD34D; border-color: rgba(245,158,11,0.3); }
+.progress-needs_practice{ background: rgba(244,63,94,0.15);  color: #FDA4AF; border-color: rgba(244,63,94,0.3); }
+
+.progress-trend { font-size: 0.8rem; }
 
 .spoken-display {
     display: flex;

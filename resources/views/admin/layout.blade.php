@@ -42,6 +42,10 @@
                                class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.attempts.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
                                 Attempts
                             </a>
+                            <a href="{{ route('admin.word-progress.index') }}"
+                               class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.word-progress.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
+                                Word Progress
+                            </a>
                         </div>
                     </div>
 
@@ -80,6 +84,10 @@
                     <a href="{{ route('admin.attempts.index') }}"
                        class="block pl-3 pr-4 py-2 {{ request()->routeIs('admin.attempts.*') ? 'bg-blue-700 text-white' : 'text-blue-100 hover:text-white hover:bg-blue-500' }} text-base font-medium">
                         Attempts
+                    </a>
+                    <a href="{{ route('admin.word-progress.index') }}"
+                       class="block pl-3 pr-4 py-2 {{ request()->routeIs('admin.word-progress.*') ? 'bg-blue-700 text-white' : 'text-blue-100 hover:text-white hover:bg-blue-500' }} text-base font-medium">
+                        Word Progress
                     </a>
                 </div>
             </div>

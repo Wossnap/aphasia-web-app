@@ -87,4 +87,7 @@ Route::middleware(['web', 'admin'])->group(function () {
     Route::get('attempts', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'index'])->name('admin.attempts.index');
     Route::post('attempts/{attempt}/add-transliteration', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'addTransliteration'])->name('admin.attempts.add-transliteration');
     Route::delete('attempts/{attempt}', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'destroy'])->name('admin.attempts.destroy');
+
+    // Per-word progress tracking
+    Route::get('word-progress', [\App\Http\Controllers\Admin\WordProgressController::class, 'index'])->name('admin.word-progress.index');
 });

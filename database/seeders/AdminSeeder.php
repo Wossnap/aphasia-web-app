@@ -14,11 +14,18 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
+        $password = env('ADMIN_DEFAULT_PASSWORD');
+
+        if (!$password) {
+            $this->command->warn('ADMIN_DEFAULT_PASSWORD is not set — skipping admin user creation.');
+            return;
+        }
+
         User::create([
             'name' => 'Admin',
-            'email' => 'admin@aphasia.com',
+            'email' => env('ADMIN_DEFAULT_EMAIL', 'admin@aphasia.com'),
             'is_admin' => true,
-            'password' => Hash::make('admin123'),
+            'password' => Hash::make($password),
         ]);
     }
 }

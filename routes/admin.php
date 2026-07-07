@@ -6,26 +6,6 @@ use App\Http\Controllers\Admin\WordController;
 use Wossnap\AmharicTransliteration\Facades\AmharicTransliteration;
 use App\Http\Controllers\Admin\CategoryController;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
-
-// Test route for debugging
-Route::get('/test', function() {
-    return response()->json([
-        'authenticated' => Auth::check(),
-        'user' => Auth::user(),
-        'session_id' => session()->getId()
-    ]);
-})->name('admin.test');
-
-// Quick test login
-Route::get('/quick-login', function() {
-    $admin = \App\Models\User::where('email', 'admin@aphasia.com')->first();
-    if ($admin) {
-        Auth::login($admin);
-        return redirect()->route('admin.dashboard');
-    }
-    return 'Admin user not found';
-})->name('admin.quick-login');
 
 // Admin Authentication Routes (with web middleware for sessions)
 Route::middleware('web')->group(function() {

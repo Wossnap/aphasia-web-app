@@ -63,12 +63,6 @@
                         Sign in
                     </button>
                 </div>
-
-                <div class="text-center">
-                    <p class="text-sm text-gray-600">
-                        Default credentials: admin@aphasia.com / admin123
-                    </p>
-                </div>
             </form>
         </div>
     </div>

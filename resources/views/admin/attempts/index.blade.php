@@ -114,12 +114,12 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 @if($attempt->is_correct)
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 shadow-sm">
+                                    <span class="js-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 shadow-sm">
                                         <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
                                         Correct
                                     </span>
                                 @else
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 shadow-sm">
+                                    <span class="js-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 shadow-sm">
                                         <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-red-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
                                         Incorrect
                                     </span>
@@ -137,12 +137,12 @@
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <div class="flex justify-end items-center space-x-3">
                                     @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
-                                        <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="inline">
+                                        <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="js-accept-form inline"
+                                              data-confirm="Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?">
                                             @csrf
                                             <button type="submit"
                                                     class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                                    title="Add this API result as a valid pronunciation option"
-                                                    onclick="return confirm('Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?')">
+                                                    title="Add this API result as a valid pronunciation option">
                                                 <i class="fas fa-plus mr-1"></i> Accept
                                             </button>
                                         </form>
@@ -193,9 +193,9 @@
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0">
                         @if($attempt->is_correct)
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Correct</span>
+                            <span class="js-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Correct</span>
                         @else
-                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">Incorrect</span>
+                            <span class="js-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">Incorrect</span>
                         @endif
                         <i class="fas fa-chevron-down text-gray-400 text-xs transition-transform details-chevron"></i>
                     </div>
@@ -255,11 +255,11 @@
 
                     <div class="flex flex-wrap gap-2 pt-1">
                         @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
-                            <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="flex-1">
+                            <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="js-accept-form flex-1"
+                                  data-confirm="Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?">
                                 @csrf
                                 <button type="submit"
-                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                                        onclick="return confirm('Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?')">
+                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                                     <i class="fas fa-plus mr-1"></i> Accept
                                 </button>
                             </form>
@@ -391,6 +391,70 @@
             }
 
             setInterval(tick, 1000);
+
+            // ── Accept without a full page reload ──────────────────────────
+            // Submitting the "Accept" form normally reloads the whole page,
+            // which loses the admin's scroll position. Intercept it, POST via
+            // fetch, then update just that row/card in place.
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            function toast(message, ok) {
+                const el = document.createElement('div');
+                el.className = 'fixed bottom-4 right-4 z-50 px-4 py-2 rounded-md shadow-lg text-sm text-white ' +
+                    (ok ? 'bg-green-600' : 'bg-red-600');
+                el.textContent = message;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 3000);
+            }
+
+            function markCorrect(form) {
+                // The row (desktop <tr>) or card (mobile <details>) this form lives in.
+                const scope = form.closest('tr') || form.closest('details');
+                if (scope) {
+                    scope.querySelectorAll('.js-status-badge').forEach(badge => {
+                        badge.classList.remove('bg-red-100', 'text-red-800', 'border-red-200');
+                        badge.classList.add('bg-green-100', 'text-green-800', 'border-green-200');
+                        badge.innerHTML = badge.innerHTML
+                            .replace('text-red-400', 'text-green-400')
+                            .replace('Incorrect', 'Correct');
+                    });
+                }
+                form.remove();
+            }
+
+            container.addEventListener('submit', async function (e) {
+                const form = e.target.closest('.js-accept-form');
+                if (!form) return;
+                e.preventDefault();
+
+                const confirmMsg = form.getAttribute('data-confirm');
+                if (confirmMsg && !confirm(confirmMsg)) return;
+
+                const btn = form.querySelector('button[type="submit"]');
+                if (btn) btn.disabled = true;
+
+                try {
+                    const res = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': csrf,
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.ok) {
+                        markCorrect(form);
+                        toast(data.message || 'Accepted.', true);
+                    } else {
+                        if (btn) btn.disabled = false;
+                        toast(data.message || 'Could not accept this attempt.', false);
+                    }
+                } catch (_) {
+                    if (btn) btn.disabled = false;
+                    toast('Network error — please try again.', false);
+                }
+            });
         })();
     </script>
 @endsection

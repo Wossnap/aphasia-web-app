@@ -68,6 +68,9 @@ Route::middleware(['web', 'admin'])->group(function () {
     Route::post('attempts/{attempt}/add-transliteration', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'addTransliteration'])->name('admin.attempts.add-transliteration');
     Route::delete('attempts/{attempt}', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'destroy'])->name('admin.attempts.destroy');
 
+    // Attempt volume analytics (per user, over time)
+    Route::get('analytics', [\App\Http\Controllers\Admin\AttemptAnalyticsController::class, 'index'])->name('admin.analytics.index');
+
     // Per-word progress tracking
     Route::get('word-progress', [\App\Http\Controllers\Admin\WordProgressController::class, 'index'])->name('admin.word-progress.index');
     Route::get('word-progress/categories', [\App\Http\Controllers\Admin\WordProgressController::class, 'categories'])->name('admin.word-progress.categories');

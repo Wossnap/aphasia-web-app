@@ -26,17 +26,17 @@ class SpeechAttemptController extends Controller
         return view('admin.attempts.index', compact('attempts', 'status', 'from', 'to'));
     }
 
-    public function addTransliteration(SpeechAttempt $attempt)
+    public function addTransliteration(Request $request, SpeechAttempt $attempt)
     {
         $word = $attempt->word;
         $transcription = trim($attempt->transcription);
 
         if (!$word) {
-            return back()->with('error', 'Associated word not found.');
+            return $this->addTransliterationResponse($request, false, 'Associated word not found.');
         }
 
         if (empty($transcription)) {
-            return back()->with('error', 'Transcription is empty.');
+            return $this->addTransliterationResponse($request, false, 'Transcription is empty.');
         }
 
         $transliterations = $word->transliterations ?? [];
@@ -52,11 +52,20 @@ class SpeechAttemptController extends Controller
         $attempt->is_correct = true;
         $attempt->save();
 
-        return back()->with('success', sprintf(
+        return $this->addTransliterationResponse($request, true, sprintf(
             'Added "%s" as a valid transliteration for "%s".',
             $transcription,
             $word->word
         ));
+    }
+
+    private function addTransliterationResponse(Request $request, bool $ok, string $message)
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['ok' => $ok, 'message' => $message], $ok ? 200 : 422);
+        }
+
+        return back()->with($ok ? 'success' : 'error', $message);
     }
 
     public function destroy(SpeechAttempt $attempt)

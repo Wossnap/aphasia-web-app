@@ -21,8 +21,12 @@ return [
         // Retries allowed on the spot before the engine moves on.
         'retries' => 1,
 
-        // Misses on one item in a session before it is set aside for the day
-        // and put on the admin list to work through together.
+        // Misses on one item within a block before it is set aside and put on
+        // the admin list to work through together. Note this resets with the
+        // block, like every other limit here — an item set aside can come back
+        // after a long enough break. What keeps a genuinely hard item out of
+        // solo practice across blocks is the quarantine band, which is
+        // measured over 30 days rather than over the sitting.
         'set_aside_after' => 4,
 
         // Consecutive misses across any items before the engine stops working
@@ -40,6 +44,11 @@ return [
      | failures in a row of chairs, which is where a session stops helping.
      */
     'session' => [
+        // Both are per block, not per day: a pause longer than gap_minutes
+        // starts a fresh sitting with the counters back at zero. Nothing here
+        // stops him doing several blocks in a day, which is deliberate —
+        // little and often is the shape that helps, and he already turns up
+        // 4 to 7 days a week without being asked.
         'max_attempts' => 50,
         'max_minutes'  => 20,
 

@@ -61,6 +61,10 @@ class SessionPlanner
         // plan stops mattering and he needs a win.
         $recovering = $this->trailingMissRun($session) >= (int) $settings['misses']['recover_after'];
 
+        if ($category->worksByLevel()) {
+            return $this->nextByLevel($stats, $session, $settings, $position, $total, $last, $lastWasMiss, $recovering, $overrun, $userId);
+        }
+
         $slot = ($overrun || $recovering) ? 'close' : $this->slotFor($position, $total, $settings);
 
         $focus = $this->focusLevel($stats, $session, $settings);
@@ -83,6 +87,241 @@ class SessionPlanner
             // Nothing eligible is not an error: it means everything here has
             // had its turn today, which is a finished session.
             ?? $this->finished($position, $total, 'exhausted');
+    }
+
+    /**
+     * A sitting in a category worked level by level.
+     *
+     * The session is a playlist of whole levels, each finished in its own
+     * order before the next begins — an easy one to open, a hard one for the
+     * work, a middling one, an easy one to finish on. That is what "level by
+     * level" means: ሀ ሁ ሂ ሃ ሄ ህ ሆ, then ገ ጉ ጊ ጋ ጌ ግ ጎ, and not one letter
+     * pulled from each of three different families.
+     *
+     * A miss still buys one retry and then a breather from a level he has
+     * already finished, because in this category a level is one consonant
+     * family and carrying on through it would be walking him further into the
+     * sound he just missed. After the breather the level resumes exactly
+     * where it left off.
+     */
+    private function nextByLevel(
+        Collection $stats,
+        Collection $session,
+        array $settings,
+        int $position,
+        int $total,
+        ?SpeechAttempt $last,
+        bool $lastWasMiss,
+        bool $recovering,
+        bool $overrun,
+        ?int $userId,
+    ): array {
+        $playlist = $this->levelPlaylist($stats, $settings);
+        $current = $this->currentPlaylistLevel($playlist, $stats, $settings);
+
+        // One more go at what he just missed, before anything else moves.
+        if ($lastWasMiss && !$overrun && !$recovering && $this->retryAllowed($last, $session, $settings)) {
+            $retry = $this->present($stats[$last->amharic_word_id] ?? null, 'focus', $position, $total, $current, retry: true);
+
+            if ($retry) {
+                return $retry;
+            }
+        }
+
+        // Inside a level the sibling rule is suspended, because working ገ ጉ ጊ
+        // in sequence is the whole point of level by level and every one of
+        // them is the same consonant. What bounds a bad level here is not
+        // stepping away sound by sound but the playlist itself: a hard level
+        // is followed by a middling one and then an easy one, and a level
+        // producing nothing at all is abandoned partway.
+        $withinLevel = $this->eligible($stats, $last, lastWasMiss: false, userId: $userId, settings: $settings);
+
+        if ($current !== null && !$overrun) {
+            $item = $this->fromFocus($withinLevel, $current);
+
+            if ($item) {
+                return $this->present($item, 'focus', $position, $total, $current);
+            }
+        }
+
+        // Between levels, and at the end of the sitting: a win. Here the
+        // sibling rule applies again, since this is meant to be a change of
+        // sound as well as a change of level.
+        $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings);
+
+        if ($eligible->isEmpty()) {
+            $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true);
+        }
+
+        $breather = $this->breather($eligible, $current, $playlist, $stats, $settings);
+
+        return $this->present($breather, 'close', $position, $total, $current)
+            ?? $this->finished($position, $total, 'exhausted');
+    }
+
+    /**
+     * The order the levels are worked in this sitting.
+     *
+     * Built from the shape in config — easy, hard, medium, easy — with each
+     * place filled by the level of that difficulty he has left alone longest,
+     * so which particular hard level comes up rotates from day to day without
+     * anyone keeping a rota. Difficulty is read from his own accuracy, so a
+     * level that becomes easy stops being served as work.
+     *
+     * @return array<int, int> level numbers, in the order they are worked
+     */
+    private function levelPlaylist(Collection $stats, array $settings): array
+    {
+        $levels = $this->levelSummary($stats, $settings);
+
+        if ($levels->isEmpty()) {
+            return [];
+        }
+
+        $easyMin = (float) $settings['level_bands']['easy_min'];
+        $hardMax = (float) $settings['level_bands']['hard_max'];
+
+        // Longest left alone first, within each band.
+        $byBand = [
+            'easy' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] >= $easyMin)->sortBy('last_worked')->values(),
+            'hard' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] < $hardMax)->sortBy('last_worked')->values(),
+            'medium' => $levels->filter(
+                fn ($l) => $l['accuracy'] === null || ($l['accuracy'] >= $hardMax && $l['accuracy'] < $easyMin)
+            )->sortBy('last_worked')->values(),
+        ];
+
+        $shape = $settings['level_shape'];
+        $playlist = [];
+        $taken = [];
+
+        // Enough places to fill the sitting even if every level goes perfectly.
+        $places = max(count($shape), (int) ceil($settings['session']['max_attempts'] / 4));
+
+        for ($place = 0; $place < $places; $place++) {
+            $wanted = $shape[$place % count($shape)];
+            $level = $this->takeLevel($byBand, $wanted, $taken);
+
+            if ($level === null) {
+                break;
+            }
+
+            $taken[$level] = true;
+            $playlist[] = $level;
+        }
+
+        return $playlist;
+    }
+
+    /**
+     * The next unused level of the wanted difficulty, falling back through the
+     * other bands so a category with no hard levels left still fills its
+     * playlist rather than cutting the sitting short.
+     */
+    private function takeLevel(array $byBand, string $wanted, array $taken): ?int
+    {
+        $order = match ($wanted) {
+            'easy' => ['easy', 'medium', 'hard'],
+            'hard' => ['hard', 'medium', 'easy'],
+            default => ['medium', 'hard', 'easy'],
+        };
+
+        foreach ($order as $band) {
+            foreach ($byBand[$band] as $level) {
+                if (!isset($taken[$level['level']])) {
+                    return $level['level'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Which level of the playlist he is on: the first one still holding an
+     * item he has not met this sitting. Recomputed from the attempt log on
+     * every request rather than remembered, so nothing has to be kept in
+     * sync and a reloaded page resumes exactly where it was.
+     */
+    private function currentPlaylistLevel(array $playlist, Collection $stats, array $settings): ?int
+    {
+        $setAsideAfter = (int) $settings['misses']['set_aside_after'];
+        $abandonAfter = (int) $settings['focus']['abandon_after_misses'];
+
+        foreach ($playlist as $level) {
+            $items = $stats->where('level', $level);
+
+            if ($items->isEmpty()) {
+                continue;
+            }
+
+            // A level going badly today is not going to come good by being
+            // pushed through to the end of the row. Move on, and let the admin
+            // list pick it up for a session with someone alongside him.
+            //
+            // Counted on misses alone, not on "nothing landed at all": one
+            // letter going in early does not mean the rest of the family is
+            // working, and requiring a blank level let a run of eight through.
+            if ($items->sum('session_misses') >= $abandonAfter) {
+                continue;
+            }
+
+            $unmet = $items->filter(
+                fn ($i) => $i['session_attempts'] === 0 && $i['session_misses'] < $setAsideAfter
+            );
+
+            if ($unmet->isNotEmpty()) {
+                return $level;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A win, to break a run of misses or to close the sitting.
+     *
+     * Taken from a level he has already finished today where possible: he has
+     * just had them right, so they are the surest thing in the category, and
+     * using them does not eat into a level still to come.
+     */
+    private function breather(Collection $eligible, ?int $current, array $playlist, Collection $stats, array $settings): ?array
+    {
+        $done = array_values(array_filter(
+            $playlist,
+            fn ($level) => $level !== $current && $stats->where('level', $level)->sum('session_attempts') > 0
+        ));
+
+        $fromFinished = $eligible->whereIn('level', $done);
+
+        if ($fromFinished->isNotEmpty()) {
+            return $this->freshestFirst($fromFinished);
+        }
+
+        return $this->winFrom($eligible, $current ?? -1, $settings);
+    }
+
+    /**
+     * Every level with its accuracy and when it was last worked.
+     *
+     * @return Collection<int, array{level:int, accuracy:?float, last_worked:int}>
+     */
+    private function levelSummary(Collection $stats, array $settings): Collection
+    {
+        return $stats
+            ->filter(fn ($i) => $i['level'] !== null)
+            ->groupBy('level')
+            ->map(function ($items, $level) {
+                $known = $items->filter(fn ($i) => $i['accuracy'] !== null);
+
+                return [
+                    'level' => (int) $level,
+                    'accuracy' => $known->isEmpty() ? null : $known->avg('accuracy'),
+                    // Blind to the sitting in progress, so the playlist stays
+                    // the same from the first item to the last.
+                    'last_worked' => $items->max(fn ($i) => $i['last_worked']?->timestamp) ?? 0,
+                ];
+            })
+            ->values();
     }
 
     /**

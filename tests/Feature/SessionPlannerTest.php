@@ -43,12 +43,42 @@ class SessionPlannerTest extends TestCase
         parent::tearDown();
     }
 
-    private function word(string $word, int $level = 1): AmharicWord
+    private function word(string $word, int $level = 1, ?int $order = null): AmharicWord
     {
-        $item = AmharicWord::create(['word' => $word, 'transliterations' => [$word]]);
+        $item = AmharicWord::create(['word' => $word, 'transliterations' => [$word], 'order' => $order]);
         $this->category->words()->attach($item->id, ['level' => $level]);
 
         return $item;
+    }
+
+    /**
+     * Run a sitting and record what was served, so a test can assert on the
+     * shape of the whole thing rather than one call at a time.
+     *
+     * @return array<int, array{word:string, level:?int, slot:string}>
+     */
+    private function runSitting(int $turns, bool $allCorrect = true): array
+    {
+        $served = [];
+
+        foreach (range(1, $turns) as $_) {
+            $plan = $this->next();
+
+            if ($plan['done']) {
+                break;
+            }
+
+            $served[] = [
+                'word' => $plan['item']['word'],
+                'level' => $plan['item']['level'],
+                'slot' => $plan['slot'],
+            ];
+
+            $this->attemptNow($plan['item'], correct: $allCorrect, secondsAgo: 0);
+            Carbon::setTestNow(Carbon::now()->addSeconds(20));
+        }
+
+        return $served;
     }
 
     /** Give an item a history, so its accuracy is known rather than null. */
@@ -322,92 +352,137 @@ class SessionPlannerTest extends TestCase
     }
 
     /**
-     * Working a level at a time. In the fidel category a level is one
-     * consonant family, so this is what makes a sitting run ሀ ሁ ሂ ሃ … the way
-     * he has always practised, instead of hopping between families.
+     * What "level by level" means: a playlist of whole levels, each finished
+     * in its own order before the next begins —
+     *
+     *     ሀ ሁ ሂ    then    ለ ሉ ሊ
+     *
+     * and not one letter taken from each of three different families, which
+     * is what the earlier version did.
      */
-    /**
-     * Working a level at a time. In the fidel category a level is one
-     * consonant family, so this is what makes a sitting run ሀ ሁ ሂ ሃ … the way
-     * he has always practised, instead of hopping between families.
-     */
-    public function test_by_level_it_stays_in_a_level_while_it_is_going_well(): void
+    public function test_by_level_it_finishes_a_level_before_starting_the_next(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
-        config(['practice.session.max_attempts' => 10]);
+        config(['practice.session.max_attempts' => 12]);
 
-        foreach (['ሀ', 'ሁ', 'ሂ', 'ሃ', 'ሄ'] as $letter) {
-            $this->history($this->word($letter, level: 1), 8, 2);
+        foreach ([['ሀ', 1], ['ሁ', 2], ['ሂ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 1, order: $order), 19, 1);
         }
 
-        // A stronger level, so the wins have somewhere to come from and the
-        // focus is not simply the only thing available.
-        foreach (['ለ', 'ሉ', 'ሊ'] as $letter) {
-            $this->history($this->word($letter, level: 2), 19, 1);
+        // Middling rather than easy, so the playlist's opening "easy" place
+        // can only be level 1 and the assertion is about the walk rather than
+        // about which of two equals came up first.
+        foreach ([['ለ', 4], ['ሉ', 5], ['ሊ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 2, order: $order), 11, 9); // 55%
         }
 
-        $focusLevels = [];
-        foreach (range(1, 8) as $_) {
-            $plan = $this->next();
+        $served = $this->runSitting(6);
 
-            if ($plan['done']) {
-                break;
-            }
-
-            if ($plan['slot'] === 'focus') {
-                $focusLevels[] = $this->levelOf($plan['item']['id']);
-            }
-
-            $this->attemptNow($plan['item'], correct: true, secondsAgo: 0);
-            Carbon::setTestNow(Carbon::now()->addSeconds(20));
-        }
-
-        $this->assertNotEmpty($focusLevels);
-        $this->assertSame([1], array_values(array_unique($focusLevels)),
-            'a good run stays inside the one level it is working');
+        $this->assertSame(
+            ['ሀ', 'ሁ', 'ሂ', 'ለ', 'ሉ', 'ሊ'],
+            array_column($served, 'word'),
+            'one whole level, in order, then the next',
+        );
     }
 
-    public function test_by_level_a_miss_still_moves_him_out_of_the_level(): void
+    /**
+     * Inside a level the sibling rule is deliberately suspended: ገ ጉ ጊ in
+     * sequence is what level by level means, and they are all one consonant.
+     * Stepping away sound by sound is not what bounds a bad run here.
+     */
+    public function test_by_level_a_miss_carries_on_through_the_level(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 12]);
 
-        $missed = $this->word('ጠ', level: 5);
+        $missed = $this->word('ጠ', level: 5, order: 1);
         $this->history($missed, 6, 4);
 
-        foreach (['ጡ', 'ጢ', 'ጣ'] as $sibling) {
-            $this->history($this->word($sibling, level: 5), 9, 1);
+        foreach ([['ጡ', 2], ['ጢ', 3], ['ጣ', 4]] as [$sibling, $order]) {
+            $this->history($this->word($sibling, level: 5, order: $order), 9, 1);
         }
-
-        $elsewhere = $this->word('ሰ', level: 9);
-        $this->history($elsewhere, 8, 2);
 
         $this->attemptNow($missed, correct: false, secondsAgo: 30);
         $this->attemptNow($missed, correct: false, secondsAgo: 20);
 
         $plan = $this->next();
 
-        $this->assertSame($elsewhere->id, $plan['item']['id'], 'a miss must leave the family');
+        $this->assertSame('ጡ', $plan['item']['word'], 'the row carries on rather than jumping away');
     }
 
-    public function test_by_level_it_opens_on_a_win_from_outside_the_focus(): void
+    /**
+     * What does bound a bad run in level mode: the level is cut short rather
+     * than pushed through to the end of the row, and the playlist follows it
+     * with something easier.
+     */
+    public function test_by_level_a_level_going_badly_is_abandoned(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 20, 'practice.focus.abandon_after_misses' => 4]);
 
-        foreach (['ጠ', 'ጡ', 'ጢ'] as $weak) {
-            $this->history($this->word($weak, level: 5), 4, 6); // 40%
+        foreach ([['ጠ', 1], ['ጡ', 2], ['ጢ', 3], ['ጣ', 4]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 5, order: $order), 8, 2);
         }
 
-        $strongest = [];
-        foreach (['ሰ', 'ሱ', 'ሲ'] as $strong) {
-            $item = $this->word($strong, level: 9);
-            $strongest[] = $item->id;
-            $this->history($item, 19, 1); // 95%
+        foreach ([['ሰ', 5], ['ሱ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1);
+        }
+
+        $seconds = 60;
+        foreach (['ጠ', 'ጠ', 'ጡ', 'ጡ'] as $letter) {
+            $this->attemptNow(AmharicWord::where('word', $letter)->first(), correct: false, secondsAgo: $seconds);
+            $seconds -= 5;
         }
 
         $plan = $this->next();
 
-        $this->assertSame('warm_up', $plan['slot']);
-        $this->assertContains($plan['item']['id'], $strongest, 'a sitting opens on something he has');
+        $this->assertNotSame(5, $plan['item']['level'], 'a level going badly is cut short');
+    }
+
+    /**
+     * The playlist opens on a level he is good at, so the sitting starts on
+     * something that goes well before the work begins.
+     */
+    public function test_by_level_it_opens_on_an_easy_level(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 12]);
+
+        foreach ([['ጠ', 1], ['ጡ', 2], ['ጢ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 5, order: $order), 2, 18); // 10%
+        }
+
+        foreach ([['ሰ', 4], ['ሱ', 5], ['ሲ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1); // 95%
+        }
+
+        $served = $this->runSitting(3);
+
+        $this->assertSame([9, 9, 9], array_column($served, 'level'), 'open on the easy level');
+        $this->assertSame(['ሰ', 'ሱ', 'ሲ'], array_column($served, 'word'));
+    }
+
+    /**
+     * And the hard level is the next thing served, not something avoided. He
+     * goes at the hard levels on purpose.
+     */
+    public function test_by_level_the_hard_level_comes_after_the_opener(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 12]);
+
+        foreach ([['ጠ', 1], ['ጡ', 2], ['ጢ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 5, order: $order), 2, 18); // 10%
+        }
+
+        foreach ([['ሰ', 4], ['ሱ', 5], ['ሲ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1);
+        }
+
+        $served = $this->runSitting(6);
+
+        $this->assertSame([9, 9, 9, 5, 5, 5], array_column($served, 'level'));
+        $this->assertSame(['ጠ', 'ጡ', 'ጢ'], array_slice(array_column($served, 'word'), 3));
     }
 
     /**

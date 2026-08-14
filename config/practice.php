@@ -90,10 +90,44 @@ return [
      | the thing he is actually trying to do.
      */
     'focus' => [
-        // Misses on one level in a sitting, with nothing landing, before the
-        // engine moves to another and leaves this one for a session with
-        // someone alongside him.
-        'abandon_after_misses' => 5,
+        // Misses on one level in a sitting before the engine gives up on it
+        // for today and moves to the next level in the playlist.
+        //
+        // This is what bounds a bad run in a category worked level by level.
+        // Stepping away sound by sound is not available there — ገ ጉ ጊ in
+        // sequence is the point — so the run is bounded by cutting the level
+        // short instead. A level going well is untouched by this; it only
+        // ever cuts one that is not.
+        //
+        // Swept against his real accuracy over three simulated days: at 3 the
+        // worst runs came out 4, 7 and 5, against 6, 5 and 8 at a threshold
+        // of six, for the same session success either way.
+        'abandon_after_misses' => 3,
+    ],
+
+    /*
+     | Categories worked a level at a time run as a playlist of whole levels,
+     | each finished in its own order before the next begins:
+     |
+     |     ሀ ሁ ሂ ሃ ሄ ህ ሆ    an easy one, to open
+     |     ገ ጉ ጊ ጋ ጌ ግ ጎ    a hard one, the work
+     |     መ ሙ ሚ ማ ሜ ም ሞ    a middling one
+     |     ሰ ሱ ሲ ሳ ሴ ስ ሶ    an easy one, to finish on
+     |
+     | This is the shape of that playlist. It repeats if a sitting is long
+     | enough to get through it. Within each band the level is chosen by what
+     | has been left alone longest, so which particular hard level comes up
+     | rotates on its own from one day to the next.
+     */
+    'level_shape' => ['easy', 'hard', 'medium', 'easy'],
+
+    /*
+     | Where a level falls, by its overall accuracy. A level nobody has
+     | attempted counts as middling — unknown is not the same as hard.
+     */
+    'level_bands' => [
+        'easy_min' => 0.65,
+        'hard_max' => 0.45,
     ],
 
     /*

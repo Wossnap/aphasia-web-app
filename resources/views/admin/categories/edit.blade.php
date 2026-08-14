@@ -57,6 +57,37 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+                        <div>
+                            <label for="easy_level_mode" class="block text-sm font-medium text-gray-700">
+                                Easy levels <span class="text-gray-400 font-normal">(only used when working level by level)</span>
+                            </label>
+                            <select name="easy_level_mode" id="easy_level_mode"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    style="border: 2px solid #9ca3af !important;">
+                                @foreach(\App\Models\Category::easyLevelModes() as $value => $label)
+                                    <option value="{{ $value }}"
+                                        {{ old('easy_level_mode', $category->easy_level_mode) === $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-sm text-gray-500">
+                                Hard and middling levels are always walked as whole rows. This only changes what happens
+                                to the levels he is already good at: either they are walked as rows too, or their
+                                letters are spread through the session as short runs of wins.
+                                <br>
+                                <span class="text-gray-400">
+                                    There is no settled answer. The one aphasia study to compare the two found them
+                                    equal for learning something, and mixing slightly better for still having it three
+                                    months later — in 4 of 10 people, by an amount the authors called modest. Leave it
+                                    on whole rows unless you want to try the other and compare his own numbers.
+                                </span>
+                            </p>
+                            @error('easy_level_mode')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
             </div>

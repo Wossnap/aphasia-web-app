@@ -579,6 +579,59 @@ class SessionPlannerTest extends TestCase
         return $this->category->words()->where('amharic_words.id', $wordId)->first()?->pivot->level;
     }
 
+    /**
+     * The setting that decides whether easy levels are walked as rows or
+     * spent as loose wins. It exists because the research does not settle it:
+     * blocked and random practice come out equal for learning something, and
+     * random slightly ahead for still having it months later, in a single
+     * 10-person study. His own data can answer it better than I can.
+     */
+    public function test_easy_levels_can_be_mixed_in_rather_than_walked_as_rows(): void
+    {
+        $this->category->update([
+            'session_mode' => Category::SESSION_BY_LEVEL,
+            'easy_level_mode' => Category::EASY_AS_MIXED,
+        ]);
+        config(['practice.session.max_attempts' => 12, 'practice.mixed_win_run' => 4]);
+
+        // Two easy families. Walked as rows they would come out ሰ ሱ ሲ ሶ;
+        // mixed, the run should cross both.
+        foreach ([['ሰ', 1], ['ሱ', 2], ['ሲ', 3], ['ሶ', 4]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1);
+        }
+
+        foreach ([['ለ', 5], ['ሉ', 6], ['ሊ', 7], ['ሎ', 8]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 2, order: $order), 18, 2);
+        }
+
+        foreach ([['ጠ', 9], ['ጡ', 10]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 5, order: $order), 2, 18);
+        }
+
+        $served = $this->runSitting(4);
+        $levels = array_column($served, 'level');
+
+        $this->assertCount(4, $served);
+        $this->assertGreaterThan(
+            1,
+            count(array_unique($levels)),
+            'a mixed run should cross more than one easy family',
+        );
+        $this->assertNotContains(5, $levels, 'the hard row comes after the wins, not during them');
+    }
+
+    public function test_whole_rows_is_the_default_for_easy_levels(): void
+    {
+        $this->assertSame(Category::EASY_AS_ROWS, $this->category->easy_level_mode);
+        $this->assertFalse($this->category->mixesEasyLevels());
+
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        $this->assertFalse($this->category->fresh()->mixesEasyLevels(), 'level mode alone does not mix');
+
+        $this->category->update(['easy_level_mode' => Category::EASY_AS_MIXED]);
+        $this->assertTrue($this->category->fresh()->mixesEasyLevels());
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

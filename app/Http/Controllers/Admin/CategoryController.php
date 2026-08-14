@@ -27,6 +27,7 @@ class CategoryController extends Controller
             'name' => 'required|string|max:255|unique:categories',
             'description' => 'nullable|string',
             'session_mode' => 'nullable|in:word,level',
+            'easy_level_mode' => 'nullable|in:rows,mixed',
         ]);
 
         Category::create($validated);
@@ -52,6 +53,7 @@ class CategoryController extends Controller
             'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
             'description' => 'nullable|string',
             'session_mode' => 'nullable|in:word,level',
+            'easy_level_mode' => 'nullable|in:rows,mixed',
         ]);
 
         $category->update($validated);

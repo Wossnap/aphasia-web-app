@@ -62,7 +62,7 @@ class SessionPlanner
         $recovering = $this->trailingMissRun($session) >= (int) $settings['misses']['recover_after'];
 
         if ($category->worksByLevel()) {
-            return $this->nextByLevel($stats, $session, $settings, $position, $total, $last, $lastWasMiss, $recovering, $overrun, $userId);
+            return $this->nextByLevel($stats, $session, $settings, $position, $total, $last, $lastWasMiss, $recovering, $overrun, $userId, $category);
         }
 
         $slot = ($overrun || $recovering) ? 'close' : $this->slotFor($position, $total, $settings);
@@ -115,9 +115,12 @@ class SessionPlanner
         bool $recovering,
         bool $overrun,
         ?int $userId,
+        Category $category,
     ): array {
-        $playlist = $this->levelPlaylist($stats, $settings);
-        $current = $this->currentPlaylistLevel($playlist, $stats, $settings);
+        $mixEasy = $category->mixesEasyLevels();
+        $playlist = $this->levelPlaylist($stats, $settings, $mixEasy);
+        $segment = $this->currentSegment($playlist, $stats, $settings);
+        $current = $segment['level'] ?? null;
 
         // One more go at what he just missed, before anything else moves.
         if ($lastWasMiss && !$overrun && !$recovering && $this->retryAllowed($last, $session, $settings)) {
@@ -141,6 +144,22 @@ class SessionPlanner
 
             if ($item) {
                 return $this->present($item, 'focus', $position, $total, $current);
+            }
+        }
+
+        // A mixed place: a short run of wins drawn from the easy levels rather
+        // than a row walked through. Same items, spread out instead of
+        // grouped, which is the only difference the two settings make.
+        if ($segment && $segment['type'] === 'mixed' && !$overrun) {
+            $win = $this->fromEasyLevels(
+                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
+                $stats,
+                $settings,
+                $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null,
+            );
+
+            if ($win) {
+                return $this->present($win, 'warm_up', $position, $total, null);
             }
         }
 
@@ -170,7 +189,7 @@ class SessionPlanner
      *
      * @return array<int, int> level numbers, in the order they are worked
      */
-    private function levelPlaylist(Collection $stats, array $settings): array
+    private function levelPlaylist(Collection $stats, array $settings, bool $mixEasy = false): array
     {
         $levels = $this->levelSummary($stats, $settings);
 
@@ -178,17 +197,7 @@ class SessionPlanner
             return [];
         }
 
-        $easyMin = (float) $settings['level_bands']['easy_min'];
-        $hardMax = (float) $settings['level_bands']['hard_max'];
-
-        // Longest left alone first, within each band.
-        $byBand = [
-            'easy' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] >= $easyMin)->sortBy('last_worked')->values(),
-            'hard' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] < $hardMax)->sortBy('last_worked')->values(),
-            'medium' => $levels->filter(
-                fn ($l) => $l['accuracy'] === null || ($l['accuracy'] >= $hardMax && $l['accuracy'] < $easyMin)
-            )->sortBy('last_worked')->values(),
-        ];
+        $byBand = $this->levelsByBand($levels, $settings);
 
         $shape = $settings['level_shape'];
         $playlist = [];
@@ -199,17 +208,43 @@ class SessionPlanner
 
         for ($place = 0; $place < $places; $place++) {
             $wanted = $shape[$place % count($shape)];
-            $level = $this->takeLevel($byBand, $wanted, $taken);
+
+            // Easy levels can be spent as loose wins rather than walked as a
+            // row. Blocked practice for what he is learning, mixed for what he
+            // already has.
+            if ($mixEasy && $wanted === 'easy') {
+                $playlist[] = ['type' => 'mixed'];
+                continue;
+            }
+
+            $level = $this->takeLevel($byBand, $wanted, $taken, skipEasy: $mixEasy);
 
             if ($level === null) {
                 break;
             }
 
             $taken[$level] = true;
-            $playlist[] = $level;
+            $playlist[] = ['type' => 'level', 'level' => $level];
         }
 
         return $playlist;
+    }
+
+    /** @return array<string, Collection> levels per difficulty, longest left alone first */
+    private function levelsByBand(Collection $levels, array $settings): array
+    {
+        $easyMin = (float) $settings['level_bands']['easy_min'];
+        $hardMax = (float) $settings['level_bands']['hard_max'];
+
+        return [
+            'easy' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] >= $easyMin)->sortBy('last_worked')->values(),
+            'hard' => $levels->filter(fn ($l) => $l['accuracy'] !== null && $l['accuracy'] < $hardMax)->sortBy('last_worked')->values(),
+            // Unknown counts as middling: too little history to say is not the
+            // same as known to be hard.
+            'medium' => $levels->filter(
+                fn ($l) => $l['accuracy'] === null || ($l['accuracy'] >= $hardMax && $l['accuracy'] < $easyMin)
+            )->sortBy('last_worked')->values(),
+        ];
     }
 
     /**
@@ -217,13 +252,19 @@ class SessionPlanner
      * other bands so a category with no hard levels left still fills its
      * playlist rather than cutting the sitting short.
      */
-    private function takeLevel(array $byBand, string $wanted, array $taken): ?int
+    private function takeLevel(array $byBand, string $wanted, array $taken, bool $skipEasy = false): ?int
     {
         $order = match ($wanted) {
             'easy' => ['easy', 'medium', 'hard'],
             'hard' => ['hard', 'medium', 'easy'],
             default => ['medium', 'hard', 'easy'],
         };
+
+        // When easy levels are being spent as loose wins they must not also
+        // turn up as a row through a fallback.
+        if ($skipEasy) {
+            $order = array_values(array_diff($order, ['easy']));
+        }
 
         foreach ($order as $band) {
             foreach ($byBand[$band] as $level) {
@@ -242,12 +283,33 @@ class SessionPlanner
      * every request rather than remembered, so nothing has to be kept in
      * sync and a reloaded page resumes exactly where it was.
      */
-    private function currentPlaylistLevel(array $playlist, Collection $stats, array $settings): ?int
+    private function currentSegment(array $playlist, Collection $stats, array $settings): ?array
     {
         $setAsideAfter = (int) $settings['misses']['set_aside_after'];
         $abandonAfter = (int) $settings['focus']['abandon_after_misses'];
+        $winRun = (int) $settings['mixed_win_run'];
 
-        foreach ($playlist as $level) {
+        // How much easy work has already been spent this sitting. Each mixed
+        // place consumes a run of it, so counting attempts is enough to know
+        // which places are behind him — no session state to keep in sync, and
+        // a reloaded page lands in the same spot.
+        $easyLevels = $this->levelsByBand($this->levelSummary($stats, $settings), $settings)['easy']
+            ->pluck('level')
+            ->all();
+
+        $easySpent = $stats->whereIn('level', $easyLevels)->sum('session_attempts');
+
+        foreach ($playlist as $segment) {
+            if ($segment['type'] === 'mixed') {
+                if ($easySpent >= $winRun) {
+                    $easySpent -= $winRun;
+                    continue;
+                }
+
+                return $segment;
+            }
+
+            $level = $segment['level'];
             $items = $stats->where('level', $level);
 
             if ($items->isEmpty()) {
@@ -270,11 +332,45 @@ class SessionPlanner
             );
 
             if ($unmet->isNotEmpty()) {
-                return $level;
+                return $segment;
             }
         }
 
         return null;
+    }
+
+    /**
+     * One letter from the easy levels, for a mixed place.
+     *
+     * Spread across families rather than taken from one, so a run of four
+     * wins is four different sounds. That interleaving is the whole point of
+     * the setting: the same letters he would have walked as a row, met in a
+     * mixed order instead.
+     */
+    private function fromEasyLevels(Collection $eligible, Collection $stats, array $settings, ?int $lastLevel): ?array
+    {
+        $easyLevels = $this->levelsByBand($this->levelSummary($stats, $settings), $settings)['easy']
+            ->pluck('level')
+            ->all();
+
+        $candidates = $eligible->whereIn('level', $easyLevels);
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        return $candidates
+            ->sortBy(fn ($i) => [
+                // Spend the untouched ones first,
+                $i['session_attempts'],
+                // then step to a different family — without this the run
+                // simply takes the strongest items, which all belong to one
+                // family, and nothing is interleaved at all,
+                $i['level'] === $lastLevel ? 1 : 0,
+                // and among equals, the surest thing.
+                -($i['accuracy'] ?? 0),
+            ])
+            ->first();
     }
 
     /**
@@ -286,10 +382,14 @@ class SessionPlanner
      */
     private function breather(Collection $eligible, ?int $current, array $playlist, Collection $stats, array $settings): ?array
     {
-        $done = array_values(array_filter(
-            $playlist,
-            fn ($level) => $level !== $current && $stats->where('level', $level)->sum('session_attempts') > 0
-        ));
+        // Level places only: a mixed place has no row of its own to come back
+        // to, and its letters are reachable through the easy pool anyway.
+        $done = collect($playlist)
+            ->where('type', 'level')
+            ->pluck('level')
+            ->filter(fn ($level) => $level !== $current && $stats->where('level', $level)->sum('session_attempts') > 0)
+            ->values()
+            ->all();
 
         $fromFinished = $eligible->whereIn('level', $done);
 

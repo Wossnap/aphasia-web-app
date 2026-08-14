@@ -122,6 +122,13 @@ return [
     'level_shape' => ['easy', 'hard', 'medium', 'easy'],
 
     /*
+     | When a category is set to mix its easy levels rather than walk them as
+     | rows, this is how many wins are spent at each easy place before the
+     | next row begins.
+     */
+    'mixed_win_run' => 4,
+
+    /*
      | Where a level falls, by its overall accuracy. A level nobody has
      | attempted counts as middling — unknown is not the same as hard.
      */

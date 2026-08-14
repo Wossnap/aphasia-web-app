@@ -14,11 +14,12 @@ use Illuminate\Http\Request;
 /**
  * "Work on these with him."
  *
- * The engine takes the items he cannot do alone out of solo practice, which
- * stops the walls but does not teach him anything — those items still need a
- * person sitting next to him for the first sessions. This is that list, and
- * it is here rather than in his app on purpose: assisted practice is your
- * time, not another screen he has to work out by himself.
+ * Nothing is withheld from him: the items here still come up in practice, and
+ * the miss rules are what keep them from becoming walls. But an item he has
+ * tried forty times and is getting nowhere with is not going to come good on
+ * the forty-first attempt alone — it needs someone beside him for a session
+ * or two. This is that list, and it is in the admin rather than in his app on
+ * purpose: it is your time, not another screen he has to work out by himself.
  */
 class PracticeFocusController extends Controller
 {
@@ -47,12 +48,14 @@ class PracticeFocusController extends Controller
             $items = $this->stats->forCategory($userId, $category);
             $confusions = $this->confusions->graph($userId);
 
-            $quarantineBelow = (float) config('practice.bands.quarantine_below', 0.25);
+            $needsHelpBelow = (float) config('practice.bands.needs_help_below', 0.25);
 
             $rows = $items
-                // Items he has actually tried and cannot yet do alone. Never
-                // attempted is not "needs help", it is "not started".
-                ->filter(fn ($i) => $i['accuracy'] !== null && $i['accuracy'] < $quarantineBelow)
+                // Items he has actually tried and is getting nowhere with on
+                // his own. Never attempted is not "needs help", it is "not
+                // started". These are not withheld from him — he still meets
+                // them in practice — they are simply the ones worth your time.
+                ->filter(fn ($i) => $i['accuracy'] !== null && $i['accuracy'] < $needsHelpBelow)
                 ->map(function ($item) use ($confusions, $items) {
                     $heard = $this->whatCameBack($item['word_id']);
 
@@ -91,7 +94,7 @@ class PracticeFocusController extends Controller
             'userId' => $userId,
             'rows' => $rows,
             'familyRows' => $familyRows,
-            'quarantineBelow' => (float) config('practice.bands.quarantine_below', 0.25),
+            'needsHelpBelow' => (float) config('practice.bands.needs_help_below', 0.25),
         ]);
     }
 

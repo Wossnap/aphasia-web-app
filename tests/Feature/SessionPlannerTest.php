@@ -209,32 +209,44 @@ class SessionPlannerTest extends TestCase
         $this->assertSame('close', $plan['slot']);
     }
 
-    public function test_items_he_cannot_do_alone_leave_solo_practice(): void
+    /**
+     * He goes at the hard levels on purpose. An engine that withheld them
+     * would be removing the thing he is actually trying to do — so hard items
+     * stay in, and the miss rules are what make them survivable.
+     */
+    public function test_hard_items_are_still_served_rather_than_withheld(): void
     {
-        $quarantined = $this->word('ጠ');
-        $this->history($quarantined, 1, 19); // 5% — this is where the walls live
+        $hard = $this->word('ጠ', level: 5);
+        $this->history($hard, 1, 19); // 5% — exactly what he chooses to work on
 
-        // Enough usable items that the sitting does not simply run out, which
-        // would pass the assertion for the wrong reason.
-        foreach (['ሰ', 'ለ', 'መ', 'ረ', 'በ', 'ተ'] as $ok) {
-            $this->history($this->word($ok), 8, 2);
+        foreach (['ሰ', 'ሱ', 'ሲ'] as $ok) {
+            $this->history($this->word($ok, level: 9), 8, 2);
         }
 
-        foreach (range(1, 10) as $_) {
+        $seen = [];
+        foreach (range(1, 12) as $_) {
             $plan = $this->next();
 
-            $this->assertFalse($plan['done'], 'the sitting should still have items to give');
-            $this->assertNotSame($quarantined->id, $plan['item']['id']);
+            if ($plan['done']) {
+                break;
+            }
 
+            $seen[] = $plan['item']['id'];
             $this->attemptNow($plan['item'], correct: true, secondsAgo: 0);
             Carbon::setTestNow(Carbon::now()->addSeconds(20));
         }
+
+        $this->assertContains($hard->id, $seen, 'the hard level is the work, not something to avoid');
     }
 
     public function test_an_item_never_seen_before_is_unknown_rather_than_bad(): void
     {
-        // No history at all. It must not be read as 0% and quarantined —
-        // never attempted is "not started", which is not the same as "hard".
+        // A short sitting, so the run reaches the working part rather than
+        // spending every turn on warm-ups.
+        config(['practice.session.max_attempts' => 10]);
+
+        // No history at all. It must not be read as 0% and withheld — never
+        // attempted is "not started", which is not the same as "hard".
         $fresh = $this->word('ጠ');
 
         foreach (['ሰ', 'ለ', 'መ'] as $known) {
@@ -242,7 +254,7 @@ class SessionPlannerTest extends TestCase
         }
 
         $seen = [];
-        foreach (range(1, 6) as $_) {
+        foreach (range(1, 8) as $_) {
             $plan = $this->next();
 
             if ($plan['done']) {
@@ -314,34 +326,47 @@ class SessionPlannerTest extends TestCase
      * consonant family, so this is what makes a sitting run ሀ ሁ ሂ ሃ … the way
      * he has always practised, instead of hopping between families.
      */
+    /**
+     * Working a level at a time. In the fidel category a level is one
+     * consonant family, so this is what makes a sitting run ሀ ሁ ሂ ሃ … the way
+     * he has always practised, instead of hopping between families.
+     */
     public function test_by_level_it_stays_in_a_level_while_it_is_going_well(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 10]);
 
-        foreach (['ሀ', 'ሁ', 'ሂ', 'ሃ'] as $letter) {
+        foreach (['ሀ', 'ሁ', 'ሂ', 'ሃ', 'ሄ'] as $letter) {
             $this->history($this->word($letter, level: 1), 8, 2);
         }
 
+        // A stronger level, so the wins have somewhere to come from and the
+        // focus is not simply the only thing available.
         foreach (['ለ', 'ሉ', 'ሊ'] as $letter) {
-            $this->history($this->word($letter, level: 2), 9, 1);
+            $this->history($this->word($letter, level: 2), 19, 1);
         }
 
-        // He is already working level 1 and getting them.
-        $opened = $this->word('ሄ', level: 1);
-        $this->history($opened, 8, 2);
-        $this->attemptNow($opened, correct: true, secondsAgo: 20);
+        $focusLevels = [];
+        foreach (range(1, 8) as $_) {
+            $plan = $this->next();
 
-        $plan = $this->next();
+            if ($plan['done']) {
+                break;
+            }
 
-        $this->assertSame(1, $plan['item']['level'] ?? $this->levelOf($plan['item']['id']),
-            'a good run stays inside the level it is working');
+            if ($plan['slot'] === 'focus') {
+                $focusLevels[] = $this->levelOf($plan['item']['id']);
+            }
+
+            $this->attemptNow($plan['item'], correct: true, secondsAgo: 0);
+            Carbon::setTestNow(Carbon::now()->addSeconds(20));
+        }
+
+        $this->assertNotEmpty($focusLevels);
+        $this->assertSame([1], array_values(array_unique($focusLevels)),
+            'a good run stays inside the one level it is working');
     }
 
-    /**
-     * The exception that keeps the wall-fixing intact: a level is a consonant
-     * family, so staying in it after a miss puts him straight back into the
-     * sound he just failed.
-     */
     public function test_by_level_a_miss_still_moves_him_out_of_the_level(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
@@ -364,7 +389,7 @@ class SessionPlannerTest extends TestCase
         $this->assertSame($elsewhere->id, $plan['item']['id'], 'a miss must leave the family');
     }
 
-    public function test_by_level_it_opens_on_a_level_he_is_strong_in(): void
+    public function test_by_level_it_opens_on_a_win_from_outside_the_focus(): void
     {
         $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
 
@@ -374,13 +399,84 @@ class SessionPlannerTest extends TestCase
 
         $strongest = [];
         foreach (['ሰ', 'ሱ', 'ሲ'] as $strong) {
-            $strongest[] = $this->word($strong, level: 9)->id;
-            $this->history(AmharicWord::find(end($strongest)), 19, 1); // 95%
+            $item = $this->word($strong, level: 9);
+            $strongest[] = $item->id;
+            $this->history($item, 19, 1); // 95%
         }
 
         $plan = $this->next();
 
-        $this->assertContains($plan['item']['id'], $strongest, 'open where he is strong');
+        $this->assertSame('warm_up', $plan['slot']);
+        $this->assertContains($plan['item']['id'], $strongest, 'a sitting opens on something he has');
+    }
+
+    /**
+     * Inside a level, practice runs in the category's own sequence — the
+     * order the alphabet is taught and recited in — rather than by score.
+     */
+    public function test_by_level_it_runs_in_the_categorys_own_order(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 10]);
+
+        // Deliberately created out of order, and with the later letters
+        // stronger, so only the order column can produce ሀ first.
+        $letters = [];
+        foreach ([['ሆ', 7, 19], ['ሁ', 2, 15], ['ሀ', 1, 8], ['ሂ', 3, 17]] as [$letter, $order, $correct]) {
+            $item = AmharicWord::create(['word' => $letter, 'transliterations' => [$letter], 'order' => $order]);
+            $this->category->words()->attach($item->id, ['level' => 1]);
+            $this->history($item, $correct, 20 - $correct);
+            $letters[$letter] = $item;
+        }
+
+        // Wins to open on, from another level.
+        foreach (['ሰ', 'ሱ'] as $support) {
+            $this->history($this->word($support, level: 9), 19, 1);
+        }
+
+        $served = [];
+        foreach (range(1, 8) as $_) {
+            $plan = $this->next();
+
+            if ($plan['done']) {
+                break;
+            }
+
+            if ($plan['slot'] === 'focus') {
+                $served[] = $plan['item']['word'];
+            }
+
+            $this->attemptNow($plan['item'], correct: true, secondsAgo: 0);
+            Carbon::setTestNow(Carbon::now()->addSeconds(20));
+        }
+
+        $this->assertSame(['ሀ', 'ሁ', 'ሂ'], array_slice($served, 0, 3), 'ሀ ሁ ሂ, not strongest first');
+    }
+
+    /**
+     * The rotation, which is what stops it serving the same thing every day:
+     * the focus goes to whatever has been left alone longest.
+     */
+    public function test_the_focus_rotates_to_the_level_left_alone_longest(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+
+        // Worked yesterday.
+        foreach (['ሰ', 'ሱ'] as $recent) {
+            $this->history($this->word($recent, level: 9), 5, 5, at: '2026-08-19 09:00:00');
+        }
+
+        // Not touched in a fortnight.
+        $stale = [];
+        foreach (['ጠ', 'ጡ'] as $old) {
+            $item = $this->word($old, level: 5);
+            $stale[] = $item->id;
+            $this->history($item, 5, 5, at: '2026-08-05 09:00:00');
+        }
+
+        $focus = app(SessionPlanner::class)->next($this->user->id, $this->category->fresh())['focus_level'];
+
+        $this->assertSame(5, $focus, 'the overdue level comes up, not the one just worked');
     }
 
     /**

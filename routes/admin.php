@@ -66,6 +66,8 @@ Route::middleware(['web', 'admin'])->group(function () {
     // Speech Attempts Log Management
     Route::get('attempts', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'index'])->name('admin.attempts.index');
     Route::post('attempts/{attempt}/add-transliteration', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'addTransliteration'])->name('admin.attempts.add-transliteration');
+    // Registered before the {attempt} route so "bulk-delete" isn't read as an id.
+    Route::delete('attempts/bulk-delete', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'bulkDestroy'])->name('admin.attempts.bulk-destroy');
     Route::delete('attempts/{attempt}', [\App\Http\Controllers\Admin\SpeechAttemptController::class, 'destroy'])->name('admin.attempts.destroy');
 
     // Attempt volume analytics (per user, over time)

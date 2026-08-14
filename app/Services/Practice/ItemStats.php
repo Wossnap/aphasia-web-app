@@ -36,9 +36,9 @@ class ItemStats
         $windowDays = (int) config('practice.bands.window_days', 30);
         $since = Carbon::now()->subDays($windowDays);
 
-        $totals = $this->totals($userId, $wordIds, $since);
         $recent = $this->recentAttempts($userId, $wordIds);
         $sessionStart = $this->sessionStart($recent);
+        $totals = $this->totals($userId, $wordIds, $since, $sessionStart);
 
         return $items->mapWithKeys(function ($item) use ($totals, $recent, $sessionStart, $category) {
             $total = $totals[$item->id] ?? null;
@@ -55,6 +55,10 @@ class ItemStats
                 'word_id' => $item->id,
                 'word' => $item->word,
                 'level' => $item->pivot->level ?? null,
+                // The category's own sequence — ሀ ሁ ሂ ሃ ሄ ህ ሆ. Practice runs
+                // in this order because that is how the alphabet is learned
+                // and recited, and the vowel row is itself a scaffold.
+                'order' => $item->order,
                 'category_id' => $category->id,
                 'attempts' => $attempts,
                 'correct' => $correct,
@@ -63,6 +67,9 @@ class ItemStats
                 // be scheduled the same way.
                 'accuracy' => $attempts >= $minAttempts ? $correct / $attempts : null,
                 'last_attempt_at' => isset($total->last_attempt_at) ? Carbon::parse($total->last_attempt_at) : null,
+                // When it was last worked before today's sitting began — the
+                // clock the focus rotation runs on.
+                'last_worked' => isset($total->last_worked) ? Carbon::parse($total->last_worked) : null,
                 'miss_streak' => $this->missStreak($forItem),
                 'session_attempts' => $inSession->count(),
                 'session_misses' => $inSession->where('is_correct', false)->count(),
@@ -158,8 +165,13 @@ class ItemStats
     }
 
     /** @return array<int, object> keyed by word id */
-    private function totals(?int $userId, array $wordIds, Carbon $since): array
+    private function totals(?int $userId, array $wordIds, Carbon $since, ?Carbon $sessionStart): array
     {
+        // last_worked deliberately stops at the start of the current sitting.
+        // The focus rotates on what has been left alone longest, and that is a
+        // question about days: counting the sitting in progress would make the
+        // level he is working the most recently touched one, and the engine
+        // would rotate away from it after every single item.
         return SpeechAttempt::query()
             ->whereIn('amharic_word_id', $wordIds)
             ->where('created_at', '>=', $since)
@@ -171,6 +183,11 @@ class ItemStats
                 DB::raw('SUM(is_correct) as correct'),
                 DB::raw('MAX(created_at) as last_attempt_at'),
             ])
+            ->when(
+                $sessionStart,
+                fn ($q) => $q->selectRaw('MAX(CASE WHEN created_at < ? THEN created_at END) as last_worked', [$sessionStart]),
+                fn ($q) => $q->selectRaw('MAX(created_at) as last_worked'),
+            )
             ->get()
             ->keyBy('amharic_word_id')
             ->all();

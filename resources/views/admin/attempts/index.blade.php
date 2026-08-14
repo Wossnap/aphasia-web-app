@@ -50,6 +50,30 @@
         </span>
     </div>
 
+    {{--
+        The bulk form holds no rows of its own — the checkboxes live down in
+        the list and point back here with form="bulk-delete-form", so the list
+        can keep being swapped out by the auto-refresh without a form element
+        wrapping it.
+    --}}
+    <form method="POST" action="{{ route('admin.attempts.bulk-destroy') }}" id="bulk-delete-form">
+        @csrf
+        @method('DELETE')
+    </form>
+
+    <div class="mb-3 flex flex-wrap items-center gap-3 bg-white shadow rounded-lg px-4 py-3">
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+            <input type="checkbox" id="select-all"
+                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            Select all on this page
+        </label>
+        <button type="submit" form="bulk-delete-form" id="bulk-delete-btn" disabled
+                class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md border border-red-300 bg-white hover:bg-red-50 text-red-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            <i class="fas fa-trash-alt mr-1.5"></i> Delete selected
+        </button>
+        <span id="bulk-selected-count" class="text-sm text-gray-500">0 selected</span>
+    </div>
+
     <div id="attempts-list">
     {{--
         One card list at every width, rather than a table for desktop and
@@ -67,6 +91,14 @@
             <details data-key="{{ $attempt->id }}"
                      class="bg-white shadow rounded-lg overflow-hidden border-l-4 {{ $attempt->is_correct ? 'border-green-400' : 'border-red-400' }}">
                 <summary class="flex items-center gap-4 px-4 py-3 cursor-pointer select-none list-none hover:bg-gray-50">
+                    {{-- Ticking a box would otherwise open the card, since any
+                         click inside a summary toggles it. --}}
+                    <label class="flex-none flex items-center" onclick="event.stopPropagation()">
+                        <input type="checkbox" name="ids[]" value="{{ $attempt->id }}" form="bulk-delete-form"
+                               class="js-attempt-check h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                               aria-label="Select this attempt">
+                    </label>
+
                     {{-- Word: the thing you look for first, so it leads. --}}
                     <div class="min-w-0 flex-1 md:flex-none md:w-56">
                         <div class="font-bold text-gray-900 text-lg truncate">
@@ -222,6 +254,10 @@
             const status = document.getElementById('live-status');
             const dot = document.getElementById('live-dot');
             const toggle = document.getElementById('live-toggle');
+            const selectAll = document.getElementById('select-all');
+            const countEl = document.getElementById('bulk-selected-count');
+            const deleteBtn = document.getElementById('bulk-delete-btn');
+            const bulkForm = document.getElementById('bulk-delete-form');
             const STORAGE_KEY = 'attempts-auto-refresh';
             let remaining = INTERVAL;
             let busy = false;
@@ -243,10 +279,55 @@
                     .some(a => !a.paused && !a.ended);
             }
 
+            // ── Bulk selection ────────────────────────────────────────────
+            function checks() {
+                return Array.from(container.querySelectorAll('.js-attempt-check'));
+            }
+
+            function selectedCount() {
+                return checks().filter(c => c.checked).length;
+            }
+
+            function refreshBulk() {
+                const all = checks();
+                const n = all.filter(c => c.checked).length;
+                countEl.textContent = n + ' selected';
+                deleteBtn.disabled = n === 0;
+                selectAll.checked = all.length > 0 && n === all.length;
+                selectAll.indeterminate = n > 0 && n < all.length;
+            }
+
+            selectAll.addEventListener('change', function () {
+                checks().forEach(c => { c.checked = selectAll.checked; });
+                refreshBulk();
+            });
+
+            // The list is re-rendered on every refresh, so listen on the
+            // container rather than on the checkboxes themselves.
+            container.addEventListener('change', function (e) {
+                if (e.target.classList.contains('js-attempt-check')) refreshBulk();
+            });
+
+            bulkForm.addEventListener('submit', function (e) {
+                const n = selectedCount();
+                if (n === 0) {
+                    e.preventDefault();
+                    return;
+                }
+                const ok = confirm('Delete ' + n + ' selected attempt' + (n === 1 ? '' : 's') +
+                    '? The recordings go too, and this cannot be undone.');
+                if (!ok) e.preventDefault();
+            });
+
+            refreshBulk();
+
             // Don't disrupt the admin: skip a silent swap while they have a card
-            // open or are interacting with a control inside the list.
+            // open, are interacting with a control inside the list, or are part
+            // way through picking rows to delete — a swap there would shift the
+            // list under a selection they are still building.
             function userBusy() {
                 if (anyAudioPlaying()) return true;
+                if (selectedCount() > 0) return true;
                 const active = document.activeElement;
                 if (active && container.contains(active)) return true;
                 return false;
@@ -272,12 +353,22 @@
                             .map(d => d.getAttribute('data-key'))
                     );
 
+                    // A selection pauses the refresh, so this should never have
+                    // anything in it — carry it anyway so a swap can't silently
+                    // drop rows the admin had ticked.
+                    const ticked = new Set(
+                        checks().filter(c => c.checked).map(c => c.value)
+                    );
+
                     // Swap content in place — page scroll position is untouched.
                     container.innerHTML = fresh.innerHTML;
 
                     container.querySelectorAll('details[data-key]').forEach(d => {
                         if (open.has(d.getAttribute('data-key'))) d.open = true;
                     });
+
+                    checks().forEach(c => { if (ticked.has(c.value)) c.checked = true; });
+                    refreshBulk();
                 } catch (_) {
                     /* ignore transient network errors; try again next tick */
                 } finally {

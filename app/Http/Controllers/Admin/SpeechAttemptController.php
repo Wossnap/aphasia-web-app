@@ -109,15 +109,52 @@ class SpeechAttemptController extends Controller
 
     public function destroy(SpeechAttempt $attempt)
     {
-        if ($attempt->audio_path) {
-            $fullPath = public_path('audio/attempts/' . $attempt->audio_path);
-            if (file_exists($fullPath)) {
-                unlink($fullPath);
-            }
-        }
+        $this->deleteRecording($attempt);
 
         $attempt->delete();
 
         return back()->with('success', 'Speech attempt deleted successfully.');
+    }
+
+    /**
+     * Delete every checked attempt in one go. Clearing out a run of noise
+     * one card at a time meant a page load per row; the ids come from the
+     * checkboxes so what gets deleted is exactly what was on screen.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:speech_attempts,id',
+        ]);
+
+        $attempts = SpeechAttempt::whereIn('id', $validated['ids'])->get();
+
+        // The rows go in a single statement, but each recording is a file on
+        // disk and has to be unlinked individually or it is orphaned.
+        foreach ($attempts as $attempt) {
+            $this->deleteRecording($attempt);
+        }
+
+        $count = SpeechAttempt::whereIn('id', $attempts->pluck('id'))->delete();
+
+        return back()->with('success', sprintf(
+            'Deleted %d speech attempt%s.',
+            $count,
+            $count === 1 ? '' : 's'
+        ));
+    }
+
+    private function deleteRecording(SpeechAttempt $attempt): void
+    {
+        if (!$attempt->audio_path) {
+            return;
+        }
+
+        $fullPath = public_path('audio/attempts/' . $attempt->audio_path);
+
+        if (file_exists($fullPath)) {
+            unlink($fullPath);
+        }
     }
 }

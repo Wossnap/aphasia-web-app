@@ -72,33 +72,52 @@ return [
      | he remembers about the session afterwards.
      */
     'shape' => [
-        'warm_up' => 0.25,
-        'core'    => 0.50,
-        'stretch' => 0.05,
+        'warm_up' => 0.20,
+        'focus'   => 0.60,
         // Whatever is left is the close, and the final item is always a win.
+        // Recovery wins are taken out of the focus share as they are needed
+        // rather than being planned, so a hard sitting spends less of itself
+        // on the work and an easy one spends more.
     ],
 
     /*
-     | Accuracy bands, as fractions. Core is deliberately the middle: an item
-     | he already has teaches nothing, and one he cannot reach teaches less.
+     | The level being worked. Chosen by what has been left alone longest,
+     | among the levels he has not finished — so it rotates by itself, and
+     | working ጠ today means something else is the most overdue tomorrow.
      |
-     | These were tuned by simulating whole sittings against his real per-item
-     | accuracy, not picked off a chart. The literature's target is 70–80%
-     | session success; this shape reaches about 64%, and pushing warm-up
-     | higher does not move it, because he does not yet hold enough items
-     | above 65% to fill more of a sitting without repeating them. It should
-     | climb on its own as items improve. The comparison that matters is the
-     | 35% he was actually living with.
+     | Difficulty is deliberately not part of the choice. He goes at the hard
+     | levels on purpose; an engine that steered around them would be removing
+     | the thing he is actually trying to do.
+     */
+    'focus' => [
+        // Misses on one level in a sitting, with nothing landing, before the
+        // engine moves to another and leaves this one for a session with
+        // someone alongside him.
+        'abandon_after_misses' => 5,
+    ],
+
+    /*
+     | Accuracy bands, as fractions.
+     |
+     | Note what is not here: a threshold below which an item is withheld.
+     | An earlier version of this engine took everything under 25% out of solo
+     | practice, which scored well in simulation and was the wrong thing to
+     | build — those are precisely the levels he chooses to work on. Hard
+     | material stays in. What makes it survivable is the miss rules, not
+     | keeping it away from him.
      */
     'bands' => [
-        'warm_up_min' => 0.65,
-        'core_min'    => 0.55,
-        'core_max'    => 0.85,
-        'stretch_min' => 0.25,
+        // A win has to be a win: warm-ups, recovery and the close are drawn
+        // from items at least this good.
+        'support_min' => 0.65,
 
-        // Below this an item stops appearing in solo practice and waits for a
-        // session with a person sitting next to him.
-        'quarantine_below' => 0.25,
+        // At or above this a level counts as finished and steps aside so the
+        // focus can rotate to something still being learned.
+        'mastered_above' => 0.85,
+
+        // Not a gate — only the mark used on the admin list to say an item
+        // needs someone sitting with him.
+        'needs_help_below' => 0.25,
 
         // An item needs at least this many attempts before its accuracy is
         // treated as real rather than noise. Below it accuracy reads as null —

@@ -5,11 +5,11 @@
 
 @section('content')
     <p class="mb-4 text-sm text-gray-600 max-w-3xl">
-        These are the items the engine has taken out of solo practice — below
-        {{ round($quarantineBelow * 100) }}% and not improving on their own. They stay out until
-        they have been worked through with a person. The recogniser's actual output is shown
-        beside each one, because it is usually obvious at a glance whether the trouble is his
-        speech or the machine's ear.
+        Items he is getting nowhere with alone — below {{ round($needsHelpBelow * 100) }}% and not
+        improving. He still meets them in practice; nothing here is withheld from him. These are
+        simply where sitting with him for a session or two is worth more than another solo
+        attempt. The recogniser's actual output is shown beside each one, because it is usually
+        obvious at a glance whether the trouble is his speech or the machine's ear.
     </p>
 
     <form method="GET" class="mb-6 bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-4">
@@ -111,8 +111,8 @@
         </div>
     @empty
         <div class="bg-white shadow rounded-lg p-6 text-center text-gray-500">
-            Nothing is quarantined in this category — everything he has tried is above
-            {{ round($quarantineBelow * 100) }}%.
+            Nothing in this category needs you right now — everything he has tried is above
+            {{ round($needsHelpBelow * 100) }}%.
         </div>
     @endforelse
 @endsection

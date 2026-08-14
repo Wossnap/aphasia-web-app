@@ -32,6 +32,31 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+                        <div>
+                            <label for="session_mode" class="block text-sm font-medium text-gray-700">
+                                Guided session works by
+                            </label>
+                            <select name="session_mode" id="session_mode"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    style="border: 2px solid #9ca3af !important;">
+                                @foreach(\App\Models\Category::sessionModes() as $value => $label)
+                                    <option value="{{ $value }}"
+                                        {{ old('session_mode', $category->session_mode) === $value ? 'selected' : '' }}>
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-sm text-gray-500">
+                                Level by level suits the fidel category, where a level is one consonant family, so he
+                                works ሀ ሁ ሂ ሃ … together. It also suits a category whose levels are difficulty tiers.
+                                Either way a miss still moves him out of the level — staying would put him straight
+                                back into the sound he just missed.
+                            </p>
+                            @error('session_mode')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
                 </div>
             </div>

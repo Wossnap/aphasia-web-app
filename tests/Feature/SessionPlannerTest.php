@@ -309,6 +309,105 @@ class SessionPlannerTest extends TestCase
         $this->assertSame($sure->id, $plan['item']['id']);
     }
 
+    /**
+     * Working a level at a time. In the fidel category a level is one
+     * consonant family, so this is what makes a sitting run ሀ ሁ ሂ ሃ … the way
+     * he has always practised, instead of hopping between families.
+     */
+    public function test_by_level_it_stays_in_a_level_while_it_is_going_well(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+
+        foreach (['ሀ', 'ሁ', 'ሂ', 'ሃ'] as $letter) {
+            $this->history($this->word($letter, level: 1), 8, 2);
+        }
+
+        foreach (['ለ', 'ሉ', 'ሊ'] as $letter) {
+            $this->history($this->word($letter, level: 2), 9, 1);
+        }
+
+        // He is already working level 1 and getting them.
+        $opened = $this->word('ሄ', level: 1);
+        $this->history($opened, 8, 2);
+        $this->attemptNow($opened, correct: true, secondsAgo: 20);
+
+        $plan = $this->next();
+
+        $this->assertSame(1, $plan['item']['level'] ?? $this->levelOf($plan['item']['id']),
+            'a good run stays inside the level it is working');
+    }
+
+    /**
+     * The exception that keeps the wall-fixing intact: a level is a consonant
+     * family, so staying in it after a miss puts him straight back into the
+     * sound he just failed.
+     */
+    public function test_by_level_a_miss_still_moves_him_out_of_the_level(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+
+        $missed = $this->word('ጠ', level: 5);
+        $this->history($missed, 6, 4);
+
+        foreach (['ጡ', 'ጢ', 'ጣ'] as $sibling) {
+            $this->history($this->word($sibling, level: 5), 9, 1);
+        }
+
+        $elsewhere = $this->word('ሰ', level: 9);
+        $this->history($elsewhere, 8, 2);
+
+        $this->attemptNow($missed, correct: false, secondsAgo: 30);
+        $this->attemptNow($missed, correct: false, secondsAgo: 20);
+
+        $plan = $this->next();
+
+        $this->assertSame($elsewhere->id, $plan['item']['id'], 'a miss must leave the family');
+    }
+
+    public function test_by_level_it_opens_on_a_level_he_is_strong_in(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+
+        foreach (['ጠ', 'ጡ', 'ጢ'] as $weak) {
+            $this->history($this->word($weak, level: 5), 4, 6); // 40%
+        }
+
+        $strongest = [];
+        foreach (['ሰ', 'ሱ', 'ሲ'] as $strong) {
+            $strongest[] = $this->word($strong, level: 9)->id;
+            $this->history(AmharicWord::find(end($strongest)), 19, 1); // 95%
+        }
+
+        $plan = $this->next();
+
+        $this->assertContains($plan['item']['id'], $strongest, 'open where he is strong');
+    }
+
+    /**
+     * The setting is per category because what a level means is per category,
+     * and only a person can say which reading suits.
+     */
+    public function test_the_mode_is_a_per_category_setting(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        $this->assertSame(Category::SESSION_BY_WORD, $this->category->session_mode, 'word by word by default');
+
+        $this->actingAs($admin)
+            ->put(route('admin.categories.update', $this->category), [
+                'name' => 'Test',
+                'session_mode' => Category::SESSION_BY_LEVEL,
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue($this->category->fresh()->worksByLevel());
+    }
+
+    private function levelOf(int $wordId): ?int
+    {
+        return $this->category->words()->where('amharic_words.id', $wordId)->first()?->pivot->level;
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

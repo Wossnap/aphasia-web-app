@@ -67,10 +67,10 @@ class SessionPlanner
         // another go at the thing he just missed is the last thing he needs.
         if ($lastWasMiss && !$overrun && !$recovering && $this->retryAllowed($last, $session, $settings)) {
             return $this->present($stats[$last->amharic_word_id] ?? null, $slot, $position, $total, retry: true)
-                ?? $this->present($this->pick($stats, $session, $slot, $last, $lastWasMiss, $userId, $settings), $slot, $position, $total);
+                ?? $this->present($this->pick($stats, $session, $slot, $last, $lastWasMiss, $userId, $settings, $category), $slot, $position, $total);
         }
 
-        $item = $this->pick($stats, $session, $slot, $last, $lastWasMiss, $userId, $settings);
+        $item = $this->pick($stats, $session, $slot, $last, $lastWasMiss, $userId, $settings, $category);
 
         return $this->present($item, $slot, $position, $total)
             // Nothing eligible is not a failure state: it means everything in
@@ -195,11 +195,32 @@ class SessionPlanner
         bool $lastWasMiss,
         ?int $userId,
         array $settings,
+        Category $category,
     ): ?array {
-        $eligible = $this->eligible($stats, $slot, $last, $lastWasMiss, $userId, $settings);
+        $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings);
+
+        // Spacing gives way only when it would otherwise leave him ending on a
+        // failure — and only then. Relaxing it up front means the same two or
+        // three safe items get pulled every time he needs a win, which is how
+        // one letter ended up served four times in a fifty-item sitting.
+        if ($eligible->isEmpty() && $lastWasMiss && $slot === 'close') {
+            $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true);
+        }
 
         if ($eligible->isEmpty()) {
             return null;
+        }
+
+        // Working a level at a time: narrow to one level first, then choose
+        // inside it exactly as before. Falls through to the whole category
+        // when the chosen level has nothing left to give, so the mode can
+        // never be the reason a sitting stalls.
+        if ($category->worksByLevel()) {
+            $withinLevel = $this->levelPool($eligible, $stats, $slot, $last, $lastWasMiss, $settings);
+
+            if ($withinLevel->isNotEmpty()) {
+                $eligible = $withinLevel;
+            }
         }
 
         foreach ($this->bandsFor($slot) as $band) {
@@ -213,6 +234,89 @@ class SessionPlanner
         // Every band empty but something is eligible: take the safest thing
         // available rather than refusing to continue.
         return $this->best($eligible, 'warm_up');
+    }
+
+    /**
+     * The eligible items belonging to the level he should be working now.
+     *
+     * Stay in the level he is already in while it is going well, because that
+     * is what "work through a level" means. Leave it when he misses — in the
+     * fidel category a level is one consonant family, so staying would put him
+     * straight back into the sound he just failed, which is the wall this
+     * whole engine exists to stop.
+     */
+    private function levelPool(
+        Collection $eligible,
+        Collection $stats,
+        string $slot,
+        ?SpeechAttempt $last,
+        bool $lastWasMiss,
+        array $settings,
+    ): Collection {
+        $currentLevel = $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null;
+
+        if (!$lastWasMiss && $currentLevel !== null) {
+            $staying = $eligible->where('level', $currentLevel);
+
+            if ($staying->isNotEmpty()) {
+                return $staying;
+            }
+        }
+
+        $levels = $this->levelStrength($stats);
+
+        if ($levels->isEmpty()) {
+            return collect();
+        }
+
+        // Strongest levels open and close the sitting; the middle works the
+        // levels he is actually learning. Same idea as the item bands, one
+        // rung up.
+        $ordered = match ($slot) {
+            'warm_up', 'close' => $levels->sortByDesc('accuracy'),
+            'stretch' => $levels->sortBy('accuracy'),
+            default => $levels
+                ->sortBy(fn ($l) => abs($l['accuracy'] - ($settings['bands']['core_min'] + $settings['bands']['core_max']) / 2)),
+        };
+
+        foreach ($ordered as $level) {
+            // A miss means leaving this level, not picking it again.
+            if ($lastWasMiss && $level['level'] === $currentLevel) {
+                continue;
+            }
+
+            $pool = $eligible->where('level', $level['level']);
+
+            if ($pool->isNotEmpty()) {
+                return $pool;
+            }
+        }
+
+        return collect();
+    }
+
+    /**
+     * Each level's overall accuracy, over items that have enough history to
+     * say. A level nobody has tried yet sorts as unknown rather than as bad.
+     *
+     * @return Collection<int, array{level:int, accuracy:float}>
+     */
+    private function levelStrength(Collection $stats): Collection
+    {
+        return $stats
+            ->filter(fn ($i) => $i['level'] !== null)
+            ->groupBy('level')
+            ->map(function ($items, $level) {
+                $known = $items->filter(fn ($i) => $i['accuracy'] !== null);
+
+                return [
+                    'level' => (int) $level,
+                    // Unknown levels sit in the middle: not shown to be hard,
+                    // and the middle is where something new should be met.
+                    'accuracy' => $known->isEmpty() ? 0.5 : $known->avg('accuracy'),
+                ];
+            })
+            ->values();
     }
 
     /**
@@ -232,23 +336,22 @@ class SessionPlanner
 
     private function eligible(
         Collection $stats,
-        string $slot,
         ?SpeechAttempt $last,
         bool $lastWasMiss,
         ?int $userId,
         array $settings,
+        bool $relaxRepeats = false,
     ): Collection {
         $quarantineBelow = (float) $settings['bands']['quarantine_below'];
         $setAsideAfter = (int) $settings['misses']['set_aside_after'];
-        $maxRepeats = (int) $settings['spacing']['max_repeats_per_session'];
 
-        // Closing after a miss is the one time spacing gives way. The rule
-        // exists so a handful of easy items do not fill the sitting; it must
-        // not be the reason he is left ending the day on a failure because
-        // everything he can actually do has already had its two turns.
-        if ($lastWasMiss && $slot === 'close') {
-            $maxRepeats = PHP_INT_MAX;
-        }
+        // The per-sitting repeat limit exists so a handful of easy items do
+        // not fill the session. It must not be the reason he is left ending on
+        // a failure, so the caller can lift it — but only once nothing else
+        // is available.
+        $maxRepeats = $relaxRepeats
+            ? PHP_INT_MAX
+            : (int) $settings['spacing']['max_repeats_per_session'];
 
         // Resolved once: reading it inside the filter would load the word
         // again for every item in the category.

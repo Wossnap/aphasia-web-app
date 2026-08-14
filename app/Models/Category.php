@@ -7,7 +7,38 @@ use Illuminate\Support\Str;
 
 class Category extends Model
 {
-    protected $fillable = ['name', 'description', 'slug'];
+    protected $fillable = ['name', 'description', 'slug', 'session_mode'];
+
+    /**
+     * Stated on the model as well as in the column default, so a category
+     * built in memory reads the same as one loaded back from the database
+     * rather than answering null until it is refreshed.
+     */
+    protected $attributes = ['session_mode' => self::SESSION_BY_WORD];
+
+    /** A guided session works item by item. */
+    public const SESSION_BY_WORD = 'word';
+
+    /**
+     * A guided session works a level at a time, strongest levels first. What a
+     * level means is the category's own business — one consonant family in the
+     * fidel category, one difficulty tier in the word categories — and the
+     * engine does not need to know which.
+     */
+    public const SESSION_BY_LEVEL = 'level';
+
+    public static function sessionModes(): array
+    {
+        return [
+            self::SESSION_BY_WORD => 'Word by word — pick items from anywhere in the category',
+            self::SESSION_BY_LEVEL => 'Level by level — work through one level at a time, strongest first',
+        ];
+    }
+
+    public function worksByLevel(): bool
+    {
+        return $this->session_mode === self::SESSION_BY_LEVEL;
+    }
 
     public function getRouteKeyName(): string
     {

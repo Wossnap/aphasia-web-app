@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AmharicWord;
 use App\Models\Category;
+use App\Services\AttemptRescorer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Wossnap\AmharicTransliteration\Facades\AmharicTransliteration;
@@ -146,7 +147,7 @@ class WordController extends Controller
         return view('admin.words.edit', compact('word', 'categories'));
     }
 
-    public function update(Request $request, AmharicWord $word)
+    public function update(Request $request, AmharicWord $word, AttemptRescorer $rescorer)
     {
         $validated = $request->validate([
             'word' => 'required|string|max:255',
@@ -238,7 +239,19 @@ class WordController extends Controller
         }
         $word->categories()->sync($categoryData);
 
-        return redirect()->route('admin.words.index')->with('success', 'Word updated successfully.');
+        // Editing the list is the same act as accepting a transcription, just
+        // by another door, so it has to reach the history too. Upgrade-only:
+        // removing a transliteration here does not retract a verdict he was
+        // already given — `attempts:rescore --allow-downgrade` does that, and
+        // only because someone chose to.
+        $report = $rescorer->rescoreWord($word);
+
+        return redirect()->route('admin.words.index')->with('success', sprintf(
+            'Word updated successfully.%s',
+            $report['upgraded'] > 0
+                ? sprintf(' Re-scored %d earlier attempt%s as correct.', $report['upgraded'], $report['upgraded'] === 1 ? '' : 's')
+                : ''
+        ));
     }
 
     public function destroy(AmharicWord $word)

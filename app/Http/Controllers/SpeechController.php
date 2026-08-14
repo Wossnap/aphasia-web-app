@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\SpeechTranscriptionService;
+use App\Services\TranscriptionMatcher;
 
 class SpeechController extends Controller
 {
     protected $speechService;
 
-    public function __construct(SpeechTranscriptionService $speechService)
+    protected TranscriptionMatcher $matcher;
+
+    public function __construct(SpeechTranscriptionService $speechService, TranscriptionMatcher $matcher)
     {
         $this->speechService = $speechService;
+        $this->matcher = $matcher;
     }
 
     public function transcribe(Request $request)
@@ -61,15 +65,7 @@ class SpeechController extends Controller
             if ($word) {
                 $transliterations = $word->transliterations ?? [];
 
-                if ($transcript !== null) {
-                    $transcriptClean = trim(strtolower($transcript));
-                    foreach ($transliterations as $transliteration) {
-                        if (str_contains($transcriptClean, strtolower(trim($transliteration)))) {
-                            $isCorrect = true;
-                            break;
-                        }
-                    }
-                }
+                $isCorrect = $this->matcher->matches($transcript, $transliterations);
 
                 // Ensure attempts directory exists
                 $attemptsDir = public_path('audio/attempts');

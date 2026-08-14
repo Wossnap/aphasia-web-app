@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\SetDisplayTimezone;
 use App\Models\SpeechAttempt;
+use App\Services\AttemptRescorer;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
@@ -56,7 +57,7 @@ class SpeechAttemptController extends Controller
             ->setTimezone(config('app.timezone'));
     }
 
-    public function addTransliteration(Request $request, SpeechAttempt $attempt)
+    public function addTransliteration(Request $request, SpeechAttempt $attempt, AttemptRescorer $rescorer)
     {
         $word = $attempt->word;
         $transcription = trim($attempt->transcription);
@@ -78,14 +79,22 @@ class SpeechAttemptController extends Controller
             $word->save();
         }
 
-        // Mark attempt as correct
-        $attempt->is_correct = true;
-        $attempt->save();
+        // Accepting a transcription is a statement about the sound, not about
+        // this one recording — so it has to reach every earlier attempt that
+        // said the same thing. Marking only the clicked attempt is what left
+        // the stored history understating him. This also covers the clicked
+        // attempt itself, which is by definition one of the upgrades.
+        $report = $rescorer->rescoreWord($word);
+
+        $alsoFixed = max($report['upgraded'] - 1, 0);
 
         return $this->addTransliterationResponse($request, true, sprintf(
-            'Added "%s" as a valid transliteration for "%s".',
+            'Added "%s" as a valid transliteration for "%s".%s',
             $transcription,
-            $word->word
+            $word->word,
+            $alsoFixed > 0
+                ? sprintf(' Re-scored %d earlier attempt%s as correct.', $alsoFixed, $alsoFixed === 1 ? '' : 's')
+                : ''
         ));
     }
 

@@ -145,6 +145,37 @@
         </main>
     </div>
 
+    {{--
+        Report this browser's timezone so times render in the viewer's own
+        zone. Storage stays UTC; this only decides how it is read back, which
+        keeps working if the viewer changes country without anyone editing a
+        config. Grouping "which day did this happen on" is decided server-side,
+        so the zone has to reach the server rather than be applied after the
+        fact in the DOM — hence the cookie and the one-time reload.
+    --}}
+    <script>
+        (function () {
+            var zone;
+            try {
+                zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            } catch (e) {
+                return;
+            }
+            if (!zone) return;
+
+            document.cookie = 'display_tz=' + encodeURIComponent(zone) +
+                '; path=/; max-age=31536000; samesite=lax';
+
+            // The page currently on screen was rendered before the server knew
+            // the zone. Reload once to redraw it correctly — and only once, so
+            // a zone the server rejects can never become a reload loop.
+            if (zone !== @json(config('app.display_timezone')) && !sessionStorage.getItem('tz_synced')) {
+                sessionStorage.setItem('tz_synced', '1');
+                window.location.reload();
+            }
+        })();
+    </script>
+
     @stack('scripts')
 </body>
 </html>

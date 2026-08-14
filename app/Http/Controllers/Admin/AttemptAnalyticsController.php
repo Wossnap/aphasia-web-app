@@ -83,9 +83,15 @@ class AttemptAnalyticsController extends Controller
             $start = $buckets[0]['from'];
         }
 
+        // The range is reasoned about in the viewer's zone but compared against
+        // storage in the application's, so it converts on the way into the
+        // query and nowhere else.
         $attempts = SpeechAttempt::query()
             ->when($userId, fn ($q) => $q->where('user_id', $userId))
-            ->whereBetween('created_at', [$start, $end])
+            ->whereBetween('created_at', [
+                $start->setTimezone(config('app.timezone')),
+                $end->setTimezone(config('app.timezone')),
+            ])
             ->get(['created_at', 'is_correct', 'user_id']);
 
         $byKey = [];
@@ -94,7 +100,7 @@ class AttemptAnalyticsController extends Controller
         }
 
         foreach ($attempts as $attempt) {
-            $key = $this->periodStart(CarbonImmutable::parse($attempt->created_at), $granularity)->toDateString();
+            $key = $this->periodStart($this->inDisplayZone($attempt->created_at), $granularity)->toDateString();
             if (!isset($byKey[$key])) {
                 continue;
             }
@@ -146,6 +152,26 @@ class AttemptAnalyticsController extends Controller
         ]);
     }
 
+    /**
+     * The zone times are shown in — the viewer's own, resolved per request by
+     * SetDisplayTimezone. Every "which day" and "what time of day" decision in
+     * here runs through this, since those answers change with the zone.
+     */
+    private function displayTz(): string
+    {
+        return config('app.display_timezone') ?: config('app.timezone');
+    }
+
+    /**
+     * A stored timestamp as an immutable instant in the display zone. Always
+     * copies: the model's own Carbon is mutable and shared, so calling
+     * setTimezone on it directly would corrupt it for later passes.
+     */
+    private function inDisplayZone($value): CarbonImmutable
+    {
+        return CarbonImmutable::parse($value)->setTimezone($this->displayTz());
+    }
+
     /** Gap preset in minutes, falling back to the configured default. */
     private function resolveGap(Request $request): int
     {
@@ -178,10 +204,13 @@ class AttemptAnalyticsController extends Controller
         $usersById = $users->keyBy('id');
         $gapSeconds = $gapMinutes * 60;
 
+        // Grouped on the date *in the viewer's zone*: a 1am sitting in Addis
+        // is the previous day in UTC, and putting it on the wrong row is not
+        // something the front end could correct afterwards.
         $groups = $attempts
             ->filter(fn ($a) => $a->user_id !== null)
             ->sortBy(fn ($a) => $a->created_at->getTimestamp())
-            ->groupBy(fn ($a) => $a->created_at->toDateString() . '|' . $a->user_id);
+            ->groupBy(fn ($a) => $this->inDisplayZone($a->created_at)->toDateString() . '|' . $a->user_id);
 
         $rows = [];
         foreach ($groups as $key => $groupAttempts) {
@@ -190,7 +219,7 @@ class AttemptAnalyticsController extends Controller
             $blocks = [];
             $current = null;
             foreach ($groupAttempts as $attempt) {
-                $at = CarbonImmutable::parse($attempt->created_at);
+                $at = $this->inDisplayZone($attempt->created_at);
 
                 // Compare on raw timestamps: diffInMinutes changed its sign
                 // convention between Carbon majors, and this cannot be wrong.
@@ -209,7 +238,7 @@ class AttemptAnalyticsController extends Controller
             }
 
             $rows[] = [
-                'date' => CarbonImmutable::parse($date),
+                'date' => CarbonImmutable::parse($date, $this->displayTz()),
                 'user' => $usersById->get((int) $groupUserId),
                 'blocks' => array_map(fn ($b) => $this->finishBlock($b), $blocks),
             ];
@@ -342,7 +371,9 @@ class AttemptAnalyticsController extends Controller
             $range = '30d';
         }
 
-        $today = CarbonImmutable::today();
+        // "Today" is the viewer's today, not the server's — near midnight the
+        // two are different days.
+        $today = CarbonImmutable::today($this->displayTz());
 
         if ($range === 'custom') {
             $start = $this->parseDate($request->query('from')) ?? $today->subDays(29);
@@ -351,7 +382,7 @@ class AttemptAnalyticsController extends Controller
             $earliest = SpeechAttempt::query()
                 ->when($userId, fn ($q) => $q->where('user_id', $userId))
                 ->min('created_at');
-            $start = $earliest ? CarbonImmutable::parse($earliest) : $today;
+            $start = $earliest ? $this->inDisplayZone($earliest) : $today;
             $end = $today;
         } else {
             $end = $today;
@@ -378,7 +409,7 @@ class AttemptAnalyticsController extends Controller
         }
 
         try {
-            return CarbonImmutable::createFromFormat('Y-m-d', $value)->startOfDay();
+            return CarbonImmutable::createFromFormat('Y-m-d', $value, $this->displayTz())->startOfDay();
         } catch (\Throwable) {
             return null;
         }

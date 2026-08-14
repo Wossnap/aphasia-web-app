@@ -69,6 +69,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Timestamps are stored in the application timezone above (UTC) and only
+    | converted for display. SetDisplayTimezone overwrites this per request
+    | with the viewer's own timezone, reported by their browser, so times read
+    | correctly wherever they happen to be. This value is the fallback for the
+    | first request from a device, before that browser has reported anything.
+    |
+    */
+
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Africa/Addis_Ababa'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

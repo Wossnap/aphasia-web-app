@@ -17,6 +17,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
+            \App\Http\Middleware\SetDisplayTimezone::class,
+        ]);
+
+        // The browser writes this itself, so it must survive Laravel's cookie
+        // encryption to be readable as a plain zone name on the way back in.
+        $middleware->encryptCookies(except: [
+            \App\Http\Middleware\SetDisplayTimezone::COOKIE,
         ]);
 
         $middleware->alias([

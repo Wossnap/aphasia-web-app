@@ -16,6 +16,17 @@ class PracticeBlocksTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Pin the display zone to storage's own by default, so the block tests
+     * assert splitting logic rather than an offset. The timezone tests below
+     * override it deliberately.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['app.display_timezone' => 'UTC']);
+    }
+
     private function admin(): User
     {
         return User::factory()->create(['is_admin' => true]);
@@ -153,6 +164,61 @@ class PracticeBlocksTest extends TestCase
         $this->assertSame('2026-08-12', $rows[1]['date']->toDateString());
         $this->assertSame(75, $rows[0]['blocks'][0]['accuracy']);
         $this->assertSame(4, $rows[0]['attempts']);
+    }
+
+    /**
+     * Storage is UTC; the timeline is drawn in the viewer's zone. A late-night
+     * sitting in Addis Ababa is the previous day in UTC, so grouping on the
+     * raw stored date would file it under the wrong day.
+     */
+    public function test_a_late_night_sitting_lands_on_the_local_day(): void
+    {
+        config(['app.display_timezone' => 'Africa/Addis_Ababa']);
+        $admin = $this->admin();
+        Carbon::setTestNow('2026-08-15 12:00:00');
+
+        // 21:30 and 21:40 UTC = 00:30 and 00:40 on Aug 15 in Addis (UTC+3).
+        $this->attemptAt($admin, '2026-08-14 21:30:00');
+        $this->attemptAt($admin, '2026-08-14 21:40:00');
+
+        $rows = $this->blockRows($admin, ['user_id' => $admin->id]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('2026-08-15', $rows[0]['date']->toDateString());
+        $this->assertSame('00:30', $rows[0]['blocks'][0]['start']->format('H:i'));
+        $this->assertSame(30, $rows[0]['blocks'][0]['start_minute'], 'plotted at 00:30 local, not 21:30');
+    }
+
+    public function test_the_browser_cookie_picks_the_display_zone(): void
+    {
+        $admin = $this->admin();
+        Carbon::setTestNow('2026-08-15 12:00:00');
+        $this->attemptAt($admin, '2026-08-15 06:00:00');
+
+        $rows = $this->actingAs($admin)
+            ->withUnencryptedCookie('display_tz', 'Asia/Tokyo')
+            ->get(route('admin.analytics.index', ['user_id' => $admin->id]))
+            ->assertOk()
+            ->viewData('blockRows');
+
+        // 06:00 UTC is 15:00 in Tokyo (UTC+9).
+        $this->assertSame('15:00', $rows[0]['blocks'][0]['start']->format('H:i'));
+    }
+
+    public function test_a_bogus_cookie_zone_is_ignored(): void
+    {
+        config(['app.display_timezone' => 'Africa/Addis_Ababa']);
+        $admin = $this->admin();
+        Carbon::setTestNow('2026-08-15 12:00:00');
+        $this->attemptAt($admin, '2026-08-15 06:00:00');
+
+        $rows = $this->actingAs($admin)
+            ->withUnencryptedCookie('display_tz', 'Moon/Base')
+            ->get(route('admin.analytics.index', ['user_id' => $admin->id]))
+            ->assertOk()
+            ->viewData('blockRows');
+
+        $this->assertSame('09:00', $rows[0]['blocks'][0]['start']->format('H:i'), 'falls back to the configured zone');
     }
 
     public function test_an_unknown_gap_falls_back_to_the_configured_default(): void

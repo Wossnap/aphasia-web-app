@@ -95,12 +95,22 @@
                 </select>
             </div>
 
+            <div>
+                <label for="gap" class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">New block after</label>
+                <select name="gap" id="gap"
+                        class="block w-36 border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+                    @foreach(\App\Http\Controllers\Admin\AttemptAnalyticsController::BLOCK_GAPS as $value => $label)
+                        <option value="{{ $value }}" {{ $gap === $value ? 'selected' : '' }}>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+
             <div class="flex items-center gap-2">
                 <button type="submit"
                         class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                     <i class="fas fa-chart-column mr-1.5"></i> Apply
                 </button>
-                @if($userId || $range !== '30d' || $granularity !== 'daily')
+                @if($userId || $range !== '30d' || $granularity !== 'daily' || request()->has('gap'))
                     <a href="{{ route('admin.analytics.index') }}"
                        class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
                         Reset
@@ -199,6 +209,119 @@
                 </div>
 
                 @include('admin.analytics.partials.accuracy')
+            </div>
+
+            {{-- Practice blocks: the only section that looks inside a day.
+                 Everything above collapses a day to one number, which cannot
+                 tell one long sitting from three short ones. --}}
+            @php
+                $fmtDuration = function ($minutes) {
+                    $minutes = (int) round($minutes);
+                    if ($minutes < 1) return 'under a minute';
+                    return $minutes < 60 ? $minutes . ' min' : intdiv($minutes, 60) . 'h ' . ($minutes % 60) . 'm';
+                };
+            @endphp
+            <div class="bg-white shadow rounded-lg p-5 mb-6">
+                <div class="flex flex-wrap items-baseline justify-between gap-3 mb-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-gray-900">Practice blocks</h2>
+                        <p class="text-sm text-gray-500">
+                            When practice actually happened, by time of day. A pause longer than
+                            <strong>{{ \App\Http\Controllers\Admin\AttemptAnalyticsController::BLOCK_GAPS[$gap] }}</strong>
+                            ends one block and starts the next.
+                        </p>
+                    </div>
+                    <p class="text-xs text-gray-400">Newest day first</p>
+                </div>
+
+                @if(empty($blockRows))
+                    <div class="px-6 py-10 text-center">
+                        <p class="text-gray-900 font-medium">No practice blocks in this range.</p>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Blocks are built per person, so attempts recorded without a signed-in user are left out.
+                        </p>
+                    </div>
+                @else
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                        <div class="rounded-lg border border-gray-200 p-3">
+                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">Blocks</div>
+                            <div class="text-2xl font-semibold text-gray-900 mt-1">{{ number_format($blockStats['blocks']) }}</div>
+                            <div class="text-xs text-gray-500 mt-1">across {{ $blockStats['days'] }} {{ $blockStats['days'] === 1 ? 'day' : 'days' }}</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-3">
+                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">Blocks per day</div>
+                            <div class="text-2xl font-semibold text-gray-900 mt-1">{{ number_format($blockStats['avg_per_day'], 1) }}</div>
+                            <div class="text-xs text-gray-500 mt-1">on days with practice</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-3">
+                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">Typical block</div>
+                            <div class="text-2xl font-semibold text-gray-900 mt-1">{{ $fmtDuration($blockStats['avg_minutes']) }}</div>
+                            <div class="text-xs text-gray-500 mt-1">first to last attempt</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-200 p-3">
+                            <div class="text-xs font-medium text-gray-500 uppercase tracking-wider">Longest block</div>
+                            <div class="text-2xl font-semibold text-gray-900 mt-1">{{ $blockStats['longest'] ? $fmtDuration($blockStats['longest']['minutes']) : '—' }}</div>
+                            <div class="text-xs text-gray-500 mt-1 truncate">
+                                {{ $blockStats['longest'] ? $blockStats['longest']['date']->format('D, M j') : 'No blocks yet' }}
+                            </div>
+                        </div>
+                    </div>
+
+                    @if($blockRowsTruncated > 0)
+                        <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded text-sm">
+                            <i class="fas fa-circle-info mr-1"></i>
+                            Showing the 30 most recent days{{ $blockShowsUser ? ' and users' : '' }};
+                            {{ $blockRowsTruncated }} older {{ $blockRowsTruncated === 1 ? 'row' : 'rows' }} not plotted.
+                            Narrow the date range to see them.
+                        </div>
+                    @endif
+
+                    @include('admin.analytics.partials.practice-blocks')
+
+                    <details class="mt-4 border-t border-gray-200 pt-3">
+                        <summary class="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 select-none">
+                            <i class="fas fa-table mr-1.5 text-gray-400"></i> View blocks as table
+                        </summary>
+                        <div class="overflow-x-auto mt-3">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
+                                        @if($blockShowsUser)
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                        @endif
+                                        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Block</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Length</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Attempts</th>
+                                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Accuracy</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    @foreach($blockRows as $row)
+                                        @foreach($row['blocks'] as $b => $block)
+                                            <tr class="text-gray-900">
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm {{ $b > 0 ? 'text-gray-400' : '' }}">
+                                                    {{ $b === 0 ? $row['date']->format('D, M j, Y') : '' }}
+                                                </td>
+                                                @if($blockShowsUser)
+                                                    <td class="px-4 py-2 whitespace-nowrap text-sm {{ $b > 0 ? 'text-gray-400' : '' }}">
+                                                        {{ $b === 0 ? ($row['user']?->name ?? 'Unknown') : '' }}
+                                                    </td>
+                                                @endif
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm tabular-nums">
+                                                    {{ $block['start']->format('g:i A') }} – {{ $block['end']->format('g:i A') }}
+                                                </td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right tabular-nums">{{ $fmtDuration($block['minutes']) }}</td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right tabular-nums font-medium">{{ number_format($block['attempts']) }}</td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right tabular-nums">{{ $block['accuracy'] === null ? '—' : $block['accuracy'] . '%' }}</td>
+                                            </tr>
+                                        @endforeach
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                @endif
             </div>
 
             @if($topUsers->isNotEmpty())

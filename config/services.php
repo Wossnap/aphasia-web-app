@@ -68,4 +68,13 @@ return [
         'improving_score' => env('WORD_PROGRESS_IMPROVING_SCORE', 5),
     ],
 
+    'analytics' => [
+        // Default pause length that ends one practice block and starts the
+        // next on the analytics timeline. Distinct from the mastery "session"
+        // above, which is a whole calendar day by design and stays that way —
+        // these two measure different things and should not be unified.
+        // Must be one of AttemptAnalyticsController::BLOCK_GAPS.
+        'block_gap_minutes' => (int) env('ANALYTICS_BLOCK_GAP_MINUTES', 30),
+    ],
+
 ];

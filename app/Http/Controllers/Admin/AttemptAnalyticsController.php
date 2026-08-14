@@ -38,11 +38,33 @@ class AttemptAnalyticsController extends Controller
     ];
 
     /**
+     * Pause lengths offered for splitting a day's attempts into practice
+     * blocks. Deliberately short options: the point is to separate "picked
+     * the tablet up again after lunch" from "kept going", and an hour is
+     * already long enough to swallow that distinction.
+     */
+    public const BLOCK_GAPS = [
+        15 => '15 minutes',
+        30 => '30 minutes',
+        60 => '1 hour',
+    ];
+
+    /**
      * Past this many buckets the columns are thinner than a readable label
      * even with horizontal scrolling, so we stop generating and tell the
      * admin to pick a coarser granularity rather than render a smear.
      */
     private const MAX_BUCKETS = 400;
+
+    /**
+     * Timeline rows are a fixed height each and stack vertically, so past
+     * this many the section stops being a chart and becomes a scroll. The
+     * most recent rows win — they're the ones being asked about.
+     */
+    private const MAX_BLOCK_ROWS = 30;
+
+    /** The timeline never squeezes below this many hours of clock width. */
+    private const MIN_AXIS_MINUTES = 360;
 
     public function index(Request $request)
     {
@@ -98,6 +120,11 @@ class AttemptAnalyticsController extends Controller
         $users = User::orderBy('name')->get(['id', 'name', 'email']);
         $selectedUser = $userId ? $users->firstWhere('id', (int) $userId) : null;
 
+        // Same rows again, cut a different way: the charts above answer "how
+        // much on this day", the timeline answers "when during it".
+        $gap = $this->resolveGap($request);
+        $blocks = $this->practiceBlocks($attempts, $gap, $users);
+
         return view('admin.analytics.index', [
             'buckets' => $buckets,
             'stats' => $stats,
@@ -110,7 +137,197 @@ class AttemptAnalyticsController extends Controller
             'from' => $start->toDateString(),
             'to' => $end->toDateString(),
             'truncated' => $truncated,
+            'gap' => $gap,
+            'blockRows' => $blocks['rows'],
+            'blockStats' => $blocks['stats'],
+            'blockAxis' => $blocks['axis'],
+            'blockRowsTruncated' => $blocks['truncated'],
+            'blockShowsUser' => $userId === null,
         ]);
+    }
+
+    /** Gap preset in minutes, falling back to the configured default. */
+    private function resolveGap(Request $request): int
+    {
+        $gap = (int) $request->query('gap');
+        if (isset(self::BLOCK_GAPS[$gap])) {
+            return $gap;
+        }
+
+        $configured = (int) config('services.analytics.block_gap_minutes', 30);
+
+        return isset(self::BLOCK_GAPS[$configured]) ? $configured : 30;
+    }
+
+    /**
+     * Split each person's day of attempts into practice blocks: consecutive
+     * attempts belong to the same block until a pause longer than the gap,
+     * which starts a new one.
+     *
+     * Grouped by (day, user) rather than day alone so that an unfiltered view
+     * never welds two people's attempts into one imaginary block — with a user
+     * selected it collapses to one row per day. Attempts with no user are
+     * skipped: separate guests are indistinguishable, so any block built from
+     * them would be fiction.
+     *
+     * A block that runs past midnight is cut at the day boundary, since the
+     * timeline's whole premise is a row per calendar day.
+     */
+    private function practiceBlocks($attempts, int $gapMinutes, $users): array
+    {
+        $usersById = $users->keyBy('id');
+        $gapSeconds = $gapMinutes * 60;
+
+        $groups = $attempts
+            ->filter(fn ($a) => $a->user_id !== null)
+            ->sortBy(fn ($a) => $a->created_at->getTimestamp())
+            ->groupBy(fn ($a) => $a->created_at->toDateString() . '|' . $a->user_id);
+
+        $rows = [];
+        foreach ($groups as $key => $groupAttempts) {
+            [$date, $groupUserId] = explode('|', $key);
+
+            $blocks = [];
+            $current = null;
+            foreach ($groupAttempts as $attempt) {
+                $at = CarbonImmutable::parse($attempt->created_at);
+
+                // Compare on raw timestamps: diffInMinutes changed its sign
+                // convention between Carbon majors, and this cannot be wrong.
+                if ($current !== null && $at->getTimestamp() - $current['end']->getTimestamp() > $gapSeconds) {
+                    $blocks[] = $current;
+                    $current = null;
+                }
+
+                $current ??= ['start' => $at, 'end' => $at, 'attempts' => 0, 'correct' => 0];
+                $current['end'] = $at;
+                $current['attempts']++;
+                $current['correct'] += $attempt->is_correct ? 1 : 0;
+            }
+            if ($current !== null) {
+                $blocks[] = $current;
+            }
+
+            $rows[] = [
+                'date' => CarbonImmutable::parse($date),
+                'user' => $usersById->get((int) $groupUserId),
+                'blocks' => array_map(fn ($b) => $this->finishBlock($b), $blocks),
+            ];
+        }
+
+        // Newest first: a caregiver opens this to see how the last few days
+        // went, not how the range started.
+        usort($rows, function ($a, $b) {
+            return [$b['date']->getTimestamp(), $a['user']?->name ?? '']
+                <=> [$a['date']->getTimestamp(), $b['user']?->name ?? ''];
+        });
+
+        $truncated = max(0, count($rows) - self::MAX_BLOCK_ROWS);
+        $rows = array_slice($rows, 0, self::MAX_BLOCK_ROWS);
+
+        foreach ($rows as $i => $row) {
+            $rows[$i]['attempts'] = array_sum(array_column($row['blocks'], 'attempts'));
+            $rows[$i]['minutes'] = array_sum(array_column($row['blocks'], 'minutes'));
+        }
+
+        return [
+            'rows' => $rows,
+            'axis' => $this->blockAxis($rows),
+            'stats' => $this->summarizeBlocks($rows),
+            'truncated' => $truncated,
+        ];
+    }
+
+    /** Derive a block's reported shape once its last attempt is known. */
+    private function finishBlock(array $block): array
+    {
+        $minutes = ($block['end']->getTimestamp() - $block['start']->getTimestamp()) / 60;
+
+        return [
+            'start' => $block['start'],
+            'end' => $block['end'],
+            // First attempt to last, so a block of one attempt is 0 minutes
+            // rather than a made-up duration.
+            'minutes' => round($minutes, 1),
+            'start_minute' => $block['start']->hour * 60 + $block['start']->minute,
+            'end_minute' => $block['end']->hour * 60 + $block['end']->minute,
+            'attempts' => $block['attempts'],
+            'correct' => $block['correct'],
+            'incorrect' => $block['attempts'] - $block['correct'],
+            'accuracy' => $block['attempts'] > 0
+                ? (int) round($block['correct'] / $block['attempts'] * 100)
+                : null,
+        ];
+    }
+
+    /**
+     * Clip the clock axis to the hours actually practised, padded out to a
+     * whole hour each side — a full midnight-to-midnight axis would spend
+     * most of its width on hours nobody has ever practised in.
+     */
+    private function blockAxis(array $rows): array
+    {
+        $starts = [];
+        $ends = [];
+        foreach ($rows as $row) {
+            foreach ($row['blocks'] as $block) {
+                $starts[] = $block['start_minute'];
+                $ends[] = $block['end_minute'];
+            }
+        }
+
+        if ($starts === []) {
+            return ['start' => 8 * 60, 'end' => 20 * 60];
+        }
+
+        $start = (int) (floor(min($starts) / 60) * 60);
+        $end = (int) (ceil(max($ends) / 60) * 60);
+
+        // Grow symmetrically to the minimum span, then shove the window back
+        // inside the day if either edge fell out of it.
+        if ($end - $start < self::MIN_AXIS_MINUTES) {
+            $needed = self::MIN_AXIS_MINUTES - ($end - $start);
+            $start -= (int) (floor($needed / 120) * 60);
+            $end = $start + self::MIN_AXIS_MINUTES;
+        }
+        if ($start < 0) {
+            $end -= $start;
+            $start = 0;
+        }
+        if ($end > 1440) {
+            $start = max(0, $start - ($end - 1440));
+            $end = 1440;
+        }
+
+        return ['start' => $start, 'end' => $end];
+    }
+
+    private function summarizeBlocks(array $rows): array
+    {
+        $blocks = [];
+        foreach ($rows as $row) {
+            foreach ($row['blocks'] as $block) {
+                $blocks[] = $block + ['date' => $row['date'], 'user' => $row['user']];
+            }
+        }
+
+        $longest = null;
+        foreach ($blocks as $block) {
+            if (!$longest || $block['minutes'] > $longest['minutes']) {
+                $longest = $block;
+            }
+        }
+
+        $days = count(array_unique(array_map(fn ($r) => $r['date']->toDateString(), $rows)));
+
+        return [
+            'blocks' => count($blocks),
+            'days' => $days,
+            'avg_per_day' => $days > 0 ? round(count($blocks) / $days, 1) : 0,
+            'avg_minutes' => $blocks !== [] ? round(array_sum(array_column($blocks, 'minutes')) / count($blocks)) : 0,
+            'total_minutes' => round(array_sum(array_column($blocks, 'minutes'))),
+            'longest' => $longest,
+        ];
     }
 
     /**

@@ -159,7 +159,7 @@ class AttemptAnalyticsController extends Controller
      */
     private function displayTz(): string
     {
-        return config('app.display_timezone') ?: config('app.timezone');
+        return \App\Http\Middleware\SetDisplayTimezone::current();
     }
 
     /**

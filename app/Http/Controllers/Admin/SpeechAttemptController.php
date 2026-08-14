@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\SetDisplayTimezone;
 use App\Models\SpeechAttempt;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
 class SpeechAttemptController extends Controller
@@ -14,16 +16,44 @@ class SpeechAttemptController extends Controller
         $from = $request->query('from');     // Y-m-d
         $to = $request->query('to');         // Y-m-d
 
+        // The picker means "this day where the viewer is", but the column is
+        // stored in the application zone — comparing the two directly would
+        // include or drop the hours either side of local midnight.
+        $fromAt = $this->dayBoundary($from, 'start');
+        $toAt = $this->dayBoundary($to, 'end');
+
         $attempts = SpeechAttempt::with(['user', 'word'])
             ->when($status === 'correct', fn ($q) => $q->where('is_correct', true))
             ->when($status === 'incorrect', fn ($q) => $q->where('is_correct', false))
-            ->when($from, fn ($q) => $q->whereDate('created_at', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('created_at', '<=', $to))
+            ->when($fromAt, fn ($q) => $q->where('created_at', '>=', $fromAt))
+            ->when($toAt, fn ($q) => $q->where('created_at', '<=', $toAt))
             ->latest()
             ->paginate(50)
             ->withQueryString();
 
         return view('admin.attempts.index', compact('attempts', 'status', 'from', 'to'));
+    }
+
+    /**
+     * A Y-m-d from the date picker, read as the start or end of that day in
+     * the viewer's zone and handed back in the application's for comparison
+     * against storage. Null for anything unparseable, which simply leaves
+     * that side of the filter off rather than erroring.
+     */
+    private function dayBoundary(?string $date, string $edge): ?CarbonImmutable
+    {
+        if (!$date) {
+            return null;
+        }
+
+        try {
+            $at = CarbonImmutable::createFromFormat('Y-m-d', $date, SetDisplayTimezone::current());
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return ($edge === 'start' ? $at->startOfDay() : $at->endOfDay())
+            ->setTimezone(config('app.timezone'));
     }
 
     public function addTransliteration(Request $request, SpeechAttempt $attempt)

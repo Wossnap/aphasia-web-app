@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Http\Middleware\SetDisplayTimezone;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -20,6 +22,20 @@ class SpeechAttempt extends Model
         'checked_transliterations' => 'array',
         'is_correct'               => 'boolean',
     ];
+
+    /**
+     * created_at in the viewer's timezone, for display.
+     *
+     * Timestamps are stored in the application timezone (UTC) and only
+     * converted on the way out. Returns an immutable copy rather than
+     * retiming the model's own Carbon, which is mutable and shared — calling
+     * setTimezone on it directly would leave every later read shifted.
+     */
+    public function getDisplayCreatedAtAttribute(): CarbonImmutable
+    {
+        return CarbonImmutable::parse($this->created_at)
+            ->setTimezone(SetDisplayTimezone::current());
+    }
 
     public function user(): BelongsTo
     {

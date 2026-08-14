@@ -22,6 +22,17 @@ class SetDisplayTimezone
 {
     public const COOKIE = 'display_tz';
 
+    /**
+     * The zone times are displayed in for this request. Single source of
+     * truth — anything formatting or day-grouping a stored timestamp should
+     * come through here rather than reading the config directly, so the
+     * fallback stays in one place.
+     */
+    public static function current(): string
+    {
+        return config('app.display_timezone') ?: config('app.timezone');
+    }
+
     public function handle(Request $request, Closure $next)
     {
         $reported = $request->cookie(self::COOKIE);

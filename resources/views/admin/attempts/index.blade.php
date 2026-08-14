@@ -73,7 +73,7 @@
                             {{ $attempt->word?->word ?? 'Deleted Word' }}
                         </div>
                         <div class="text-xs text-gray-500 truncate">
-                            <span class="md:hidden">{{ $attempt->created_at->diffForHumans() }}@if($attempt->word?->meaning) &middot; {{ $attempt->word->meaning }}@endif</span>
+                            <span class="md:hidden">{{ $attempt->display_created_at->diffForHumans() }}@if($attempt->word?->meaning) &middot; {{ $attempt->word->meaning }}@endif</span>
                             <span class="hidden md:inline">{{ $attempt->word?->meaning ?? 'No meaning' }}</span>
                         </div>
                     </div>
@@ -98,9 +98,9 @@
                         @endif
                     </div>
 
-                    <div class="hidden md:block w-32 text-right" title="{{ $attempt->created_at }}">
-                        <div class="text-sm text-gray-900">{{ $attempt->created_at->format('M d, H:i') }}</div>
-                        <div class="text-xs text-gray-500">{{ $attempt->created_at->diffForHumans() }}</div>
+                    <div class="hidden md:block w-32 text-right" title="{{ $attempt->display_created_at->format('D, M j, Y g:i:s A T') }}">
+                        <div class="text-sm text-gray-900">{{ $attempt->display_created_at->format('M d, H:i') }}</div>
+                        <div class="text-xs text-gray-500">{{ $attempt->display_created_at->diffForHumans() }}</div>
                     </div>
 
                     <div class="flex items-center gap-2 flex-none">

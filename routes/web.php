@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\AmharicWordController;
+use App\Http\Controllers\PracticeSessionController;
 use App\Http\Controllers\SpeechController;
 use App\Http\Controllers\UserAuthController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/categories', [AmharicWordController::class, 'getCategories']);
     Route::get('/api/categories/{category}/levels', [AmharicWordController::class, 'getLevels']);
     Route::post('/api/transcribe', [SpeechController::class, 'transcribe'])->name('api.transcribe');
+
+    // Guided session: the engine decides the next item from his history.
+    Route::get('/api/practice/next', [PracticeSessionController::class, 'next'])->name('api.practice.next');
 
     // Deep-linkable practice URLs: /{slug} (levels) and /{slug}/level-{n} (practice).
     // Registered last; the constraint excludes reserved prefixes so it never shadows

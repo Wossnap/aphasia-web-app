@@ -50,6 +50,10 @@
                                class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.analytics.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
                                 Analytics
                             </a>
+                            <a href="{{ route('admin.practice-focus.index') }}"
+                               class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.practice-focus.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
+                                Work With Him
+                            </a>
                         </div>
                     </div>
 

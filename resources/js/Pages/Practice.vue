@@ -59,6 +59,16 @@
                                     </button>
                                     <p class="level-label">{{ selectedCategory?.name }} — Choose a level</p>
                                 </div>
+                                <!-- Guided session: the app chooses everything.
+                                     Offered first, and deliberately larger than
+                                     the level grid — picking a level is the
+                                     fallback, not the main way in. -->
+                                <button class="btn btn-primary btn-xl guided-btn" @click="startGuided">
+                                    <i class="fas fa-play btn-icon"></i>
+                                    Start today's practice
+                                </button>
+                                <div class="divider divider-sm"><span>or pick a level</span></div>
+
                                 <div v-if="levelsLoading" class="levels-loading">
                                     <i class="fas fa-spinner fa-spin"></i>
                                 </div>
@@ -96,6 +106,15 @@
                     <span class="status-text">{{ statusText }}</span>
                 </div>
 
+                <!-- Visible finish line. A guided sitting is a thing that ends,
+                     and he can see how much is left of it. -->
+                <div v-if="guided && sessionTotal" class="session-progress">
+                    <div class="session-bar">
+                        <div class="session-bar-fill" :style="{ width: sessionPercent + '%' }"></div>
+                    </div>
+                    <span class="session-count">{{ Math.min(sessionPosition, sessionTotal) }} / {{ sessionTotal }}</span>
+                </div>
+
                 <!-- Word + media -->
                 <div class="word-section">
                     <!-- Single media (default) -->
@@ -127,8 +146,11 @@
                     </div>
 
                     <!-- Subtle per-word progress: hidden until the user has actually
-                         attempted this word (nothing to show for a fresh word). -->
-                    <div v-if="wordProgress" class="progress-badge" :class="`progress-${wordProgress.status}`">
+                         attempted this word (nothing to show for a fresh word).
+                         Hidden entirely in a guided sitting — a running "2/10"
+                         on a word he is working on is a score he cannot act on,
+                         and the session bar already tells him where he is. -->
+                    <div v-if="wordProgress && !guided" class="progress-badge" :class="`progress-${wordProgress.status}`">
                         <span class="progress-score">{{ wordProgress.score }}/10</span>
                         <i v-if="wordProgress.trend === 'up'" class="fas fa-arrow-trend-up progress-trend"></i>
                         <i v-else-if="wordProgress.trend === 'down'" class="fas fa-arrow-trend-down progress-trend"></i>
@@ -212,6 +234,24 @@
             </div>
         </transition>
 
+        <!-- ── Finished screen ──
+             What he sees at the end of a guided sitting. Deliberately holds no
+             accuracy, no score and no "needs focus": the session is a thing he
+             completed, and that is the whole message. -->
+        <transition name="fade">
+            <div v-if="screen === 'finished'" class="screen finished-screen" key="finished">
+                <div class="finished-inner">
+                    <div class="finished-emoji">🌟</div>
+                    <h2 class="finished-title">Well done — that's today's practice</h2>
+                    <p class="finished-sub">You did {{ sessionDone }} words today.</p>
+                    <button class="btn btn-primary btn-xl" @click="leaveFinished">
+                        <i class="fas fa-check btn-icon"></i>
+                        Finish
+                    </button>
+                </div>
+            </div>
+        </transition>
+
         <!-- ── Feedback overlay ── -->
         <transition name="fade">
             <div v-if="feedback" class="feedback-overlay" :class="`feedback-${feedback}`">
@@ -267,6 +307,25 @@ const mediaUrl        = ref(null);
 const mediaUrl2       = ref(null); // second visual: image when gif+image both exist
 const awaitingStart   = ref(false); // deep-link landed on a practice URL; wait for a tap (audio needs a gesture)
 const paused          = ref(false); // user paused mid-session (no audio, no mic)
+
+// ─── Guided session ───────────────────────────────────────────────────────────
+// In a guided sitting the server chooses every item from his history: which
+// word, when to move on, and when the session is finished. The browser only
+// asks "what next" and reports what happened.
+const guided          = ref(false);
+const sessionPosition = ref(0);
+const sessionTotal    = ref(0);
+const sessionDone     = ref(0);   // items completed, for the finish screen
+
+// Consecutive misses on the current word in free practice. The engine handles
+// this itself in a guided sitting; this is the same wall being taken out of
+// the older modes, where a missed word used to come back without limit.
+const freeMisses      = ref(0);
+const FREE_MISS_LIMIT = 2;
+
+const sessionPercent = computed(() => (
+    sessionTotal.value ? Math.min(100, Math.round((sessionPosition.value / sessionTotal.value) * 100)) : 0
+));
 
 // 'categories' | 'levels'
 const settingsView    = ref('categories');
@@ -350,7 +409,20 @@ function startRandom() {
     launchPractice();
 }
 
+// Guided: hand the whole sitting to the engine. No level to choose, because
+// choosing one is exactly the decision he should not have to make.
+function startGuided() {
+    guided.value = true;
+    sessionPosition.value = 0;
+    sessionTotal.value = 0;
+    sessionDone.value = 0;
+    currentCategory.value = selectedCategory.value?.id ?? null;
+    currentLevel.value = null;
+    launchPractice();
+}
+
 function startLevel(lvl) {
+    guided.value = false;
     currentCategory.value = selectedCategory.value?.id ?? null;
     currentLevel.value    = lvl;
     if (selectedCategory.value?.slug) {
@@ -379,6 +451,8 @@ async function beginPractice() {
 
 // ─── Word loading ─────────────────────────────────────────────────────────────
 async function loadWord() {
+    if (guided.value) return loadGuidedWord();
+
     speechState.value = 'loading';
     mediaUrl.value  = null;
     mediaUrl2.value = null;
@@ -403,6 +477,56 @@ async function loadWord() {
     setMedia(word);
 }
 
+// Ask the engine what comes next. It answers with an item, or with a finished
+// session — including the case where it has decided the sitting has run long
+// enough, which is not something the browser gets a say in.
+async function loadGuidedWord() {
+    speechState.value = 'loading';
+    mediaUrl.value  = null;
+    mediaUrl2.value = null;
+
+    let plan;
+    try {
+        const res = await fetch(`/api/practice/next?category_id=${currentCategory.value}`);
+        plan = await res.json();
+    } catch (_) {
+        // A dropped request should not end his session; let him retry.
+        speechState.value = 'idle';
+        return;
+    }
+
+    sessionPosition.value = plan.position ?? sessionPosition.value;
+    sessionTotal.value    = plan.total ?? sessionTotal.value;
+
+    if (plan.done || !plan.item) {
+        finishSession();
+        return;
+    }
+
+    currentWord.value  = plan.item;
+    wordProgress.value = plan.item.progress ?? null;
+    spokenWord.value   = '';
+    setMedia(plan.item);
+}
+
+function finishSession() {
+    stopAll();
+    sessionDone.value = Math.max(sessionPosition.value - 1, 0);
+    currentWord.value = null;
+    spokenWord.value  = '';
+    feedback.value    = null;
+    speechState.value = 'idle';
+    screen.value      = 'finished';
+}
+
+// From the finish screen back to where he can choose again.
+function leaveFinished() {
+    guided.value = false;
+    screen.value = 'settings';
+    settingsView.value = selectedCategory.value ? 'levels' : 'categories';
+    syncUrl(selectedCategory.value?.slug ? `/${selectedCategory.value.slug}` : '/');
+}
+
 function setMedia(word) {
     if (word.gif_path) {
         mediaUrl.value  = `/gifs/${word.gif_path.replace(/^\/+/, '')}`;
@@ -419,8 +543,9 @@ function setMedia(word) {
 
 // ─── User actions ─────────────────────────────────────────────────────────────
 async function nextWord() {
+    freeMisses.value = 0;
     await loadWord();
-    await playWordAndListen(currentWord.value);
+    if (currentWord.value) await playWordAndListen(currentWord.value);
 }
 
 async function listenAgain() {
@@ -477,6 +602,8 @@ function stopPractice() {
     speechState.value = 'idle';
     awaitingStart.value = false;
     paused.value = false;
+    guided.value = false;
+    freeMisses.value = 0;
     screen.value = 'settings';
 
     if (selectedCategory.value?.slug) {
@@ -496,6 +623,10 @@ function stopPractice() {
 // shows the word and waits for a tap.
 function applyPath(pathname) {
     const parts = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+
+    // Guided sittings have no URL of their own, so any navigation leaves one.
+    guided.value = false;
+    freeMisses.value = 0;
 
     // Categories
     if (parts.length === 0) {
@@ -566,18 +697,44 @@ async function handleSpokenResult(spoken, serverVerdict = null) {
           ) ?? false);
 
     if (isCorrect) {
+        freeMisses.value = 0;
         feedback.value = 'success';
         await delay(2000);
         feedback.value = null;
         await loadWord();
-        await playWordAndListen(currentWord.value);
-    } else {
-        feedback.value = 'error';
-        await delay(2000);
-        feedback.value   = null;
-        spokenWord.value = '';
-        await replayWord(currentWord.value);
+        if (currentWord.value) await playWordAndListen(currentWord.value);
+        return;
     }
+
+    feedback.value = 'error';
+    await delay(2000);
+    feedback.value   = null;
+    spokenWord.value = '';
+
+    // This is where the walls were built. The app used to replay the same word
+    // on every miss, without limit — after a miss it re-showed the same item
+    // 74% of the time, against 6% after a success, which is how the log came to
+    // hold 450 runs of five or more consecutive misses and one of 61.
+    //
+    // In a guided sitting the engine decides: it allows one retry, then moves
+    // on, and steps away from anything that would land as the same wall. In
+    // free practice there is no engine, so the limit is applied here.
+    if (guided.value) {
+        await loadWord();
+        if (currentWord.value) await playWordAndListen(currentWord.value);
+        return;
+    }
+
+    freeMisses.value += 1;
+
+    if (freeMisses.value >= FREE_MISS_LIMIT) {
+        freeMisses.value = 0;
+        await loadWord();
+        if (currentWord.value) await playWordAndListen(currentWord.value);
+        return;
+    }
+
+    await replayWord(currentWord.value);
 }
 
 // ─── PWA install ─────────────────────────────────────────────────────────────
@@ -819,6 +976,83 @@ function delay(ms) {
     flex: 1;
     height: 1px;
     background: rgba(255,255,255,0.15);
+}
+
+.divider-sm {
+    font-size: 0.9rem;
+    margin: 1rem 0 0.25rem;
+}
+
+/* ── Guided session ───────────────────────────────────────────── */
+.guided-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+/* The finish line, so a sitting is visibly a thing that ends. */
+.session-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 480px;
+    margin: 0.75rem auto 0;
+    padding: 0 1rem;
+}
+
+.session-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    overflow: hidden;
+}
+
+.session-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #8B5CF6 0%, #C4B5FD 100%);
+    transition: width 0.4s ease;
+}
+
+.session-count {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.65);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Finished screen ──────────────────────────────────────────── */
+.finished-screen {
+    align-items: center;
+    justify-content: center;
+}
+
+.finished-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    max-width: 480px;
+}
+
+.finished-emoji {
+    font-size: 4.5rem;
+    line-height: 1;
+}
+
+.finished-title {
+    font-size: 1.9rem;
+    font-weight: 800;
+    margin: 0;
+}
+
+.finished-sub {
+    font-size: 1.15rem;
+    color: rgba(255,255,255,0.6);
+    margin: 0 0 0.5rem;
 }
 
 /* ── Category grid ────────────────────────────────────────────── */

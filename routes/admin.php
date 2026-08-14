@@ -71,6 +71,10 @@ Route::middleware(['web', 'admin'])->group(function () {
     // Attempt volume analytics (per user, over time)
     Route::get('analytics', [\App\Http\Controllers\Admin\AttemptAnalyticsController::class, 'index'])->name('admin.analytics.index');
 
+    // Assisted practice: the items the engine has taken out of solo practice
+    // and which need someone sitting with him.
+    Route::get('practice-focus', [\App\Http\Controllers\Admin\PracticeFocusController::class, 'index'])->name('admin.practice-focus.index');
+
     // Per-word progress tracking
     Route::get('word-progress', [\App\Http\Controllers\Admin\WordProgressController::class, 'index'])->name('admin.word-progress.index');
     Route::get('word-progress/categories', [\App\Http\Controllers\Admin\WordProgressController::class, 'categories'])->name('admin.word-progress.categories');

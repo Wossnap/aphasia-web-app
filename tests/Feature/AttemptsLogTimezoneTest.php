@@ -46,8 +46,8 @@ class AttemptsLogTimezoneTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.attempts.index'))
             ->assertOk()
-            ->assertSee('Aug 15, 09:30')
-            ->assertDontSee('Aug 15, 06:30');
+            ->assertSee('Aug 15, 9:30 AM')
+            ->assertDontSee('Aug 15, 6:30 AM');
     }
 
     public function test_the_browser_cookie_changes_the_listed_time(): void
@@ -61,7 +61,7 @@ class AttemptsLogTimezoneTest extends TestCase
             ->withUnencryptedCookie('display_tz', 'Asia/Tokyo')
             ->get(route('admin.attempts.index'))
             ->assertOk()
-            ->assertSee('Aug 15, 15:30');
+            ->assertSee('Aug 15, 3:30 PM');
     }
 
     public function test_the_date_filter_uses_the_viewers_day_boundaries(): void

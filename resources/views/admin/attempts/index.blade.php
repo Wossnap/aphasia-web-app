@@ -99,7 +99,7 @@
                     </div>
 
                     <div class="hidden md:block w-32 text-right" title="{{ $attempt->display_created_at->format('D, M j, Y g:i:s A T') }}">
-                        <div class="text-sm text-gray-900">{{ $attempt->display_created_at->format('M d, H:i') }}</div>
+                        <div class="text-sm text-gray-900">{{ $attempt->display_created_at->format('M d, g:i A') }}</div>
                         <div class="text-xs text-gray-500">{{ $attempt->display_created_at->diffForHumans() }}</div>
                     </div>
 

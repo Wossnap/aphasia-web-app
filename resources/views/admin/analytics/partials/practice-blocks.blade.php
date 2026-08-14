@@ -121,11 +121,14 @@
                         $hitW = max(20, $w + 12);
                         $hitX = $x + $w / 2 - $hitW / 2;
 
-                        $labelText = $block['start']->format('g:i');
+                        // "9:12a" rather than "9:12am": at 9px under a block
+                        // there is room for the one letter that resolves the
+                        // ambiguity, and not much more.
+                        $labelText = $block['start']->format('g:i') . substr($block['start']->format('a'), 0, 1);
                         $labelX = $x + $w / 2;
-                        $showLabel = $labelledBlocks && $w >= 22 && ($labelX - 16) > $lastLabelRight;
+                        $showLabel = $labelledBlocks && $w >= 26 && ($labelX - 18) > $lastLabelRight;
                         if ($showLabel) {
-                            $lastLabelRight = $labelX + 16;
+                            $lastLabelRight = $labelX + 18;
                         }
                     @endphp
 

@@ -51,147 +51,59 @@
     </div>
 
     <div id="attempts-list">
-    {{-- ─────────────── Desktop: table ─────────────── --}}
-    <div class="hidden md:block bg-white shadow rounded-lg overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amharic Word</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Speech API Result</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked Transliterations</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Audio Playback</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($attempts as $attempt)
-                        <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" title="{{ $attempt->created_at }}">
-                                {{ $attempt->created_at->format('M d, Y H:i') }}
-                                <span class="block text-xs text-gray-500">{{ $attempt->created_at->diffForHumans() }}</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                @if($attempt->user)
-                                    <div class="font-medium text-gray-900">{{ $attempt->user->name }}</div>
-                                    <div class="text-xs text-gray-500">{{ $attempt->user->email }}</div>
-                                @else
-                                    <span class="text-gray-400 italic">Anonymous/Guest</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                @if($attempt->word)
-                                    <a href="{{ route('admin.words.edit', $attempt->word) }}"
-                                       class="group inline-flex items-center gap-1.5" title="Edit this word">
-                                        <span class="font-bold text-blue-700 group-hover:text-blue-900 group-hover:underline text-lg">{{ $attempt->word->word }}</span>
-                                        <i class="fas fa-pen text-xs text-gray-400 group-hover:text-blue-600"></i>
-                                    </a>
-                                    <div class="text-xs text-gray-500">{{ $attempt->word->meaning ?? 'No meaning' }}</div>
-                                @else
-                                    <span class="text-red-500 text-sm italic">Deleted Word</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                @if($attempt->transcription)
-                                    <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200">{{ $attempt->transcription }}</span>
-                                @else
-                                    <span class="text-rose-500 italic text-xs">No result / Silenced</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 text-sm text-gray-900">
-                                <div class="flex flex-wrap gap-1 max-w-[250px]">
-                                    @if(is_array($attempt->checked_transliterations))
-                                        @foreach($attempt->checked_transliterations as $translit)
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">{{ $translit }}</span>
-                                        @endforeach
-                                    @else
-                                        <span class="text-gray-400 italic text-xs">—</span>
-                                    @endif
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                @if($attempt->is_correct)
-                                    <span class="js-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200 shadow-sm">
-                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-green-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
-                                        Correct
-                                    </span>
-                                @else
-                                    <span class="js-status-badge inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200 shadow-sm">
-                                        <svg class="-ml-0.5 mr-1.5 h-2 w-2 text-red-400" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" /></svg>
-                                        Incorrect
-                                    </span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                @if($attempt->audio_path)
-                                    <audio controls preload="none" class="h-8 max-w-[180px] outline-none">
-                                        <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
-                                    </audio>
-                                @else
-                                    <span class="text-gray-400 italic text-xs">No recording</span>
-                                @endif
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <div class="flex justify-end items-center space-x-3">
-                                    @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
-                                        <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="js-accept-form inline"
-                                              data-confirm="Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?">
-                                            @csrf
-                                            <button type="submit"
-                                                    class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                                    title="Add this API result as a valid pronunciation option">
-                                                <i class="fas fa-plus mr-1"></i> Accept
-                                            </button>
-                                        </form>
-                                    @endif
-                                    <form method="POST" action="{{ route('admin.attempts.destroy', $attempt) }}" class="inline">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit"
-                                                class="inline-flex items-center px-2.5 py-1.5 border border-red-300 text-xs font-semibold rounded bg-white hover:bg-red-50 text-red-700 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                                onclick="return confirm('Are you sure you want to delete this attempt log entry?')">
-                                            <i class="fas fa-trash-alt mr-1"></i> Delete
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="8" class="px-6 py-12 whitespace-nowrap text-sm text-gray-500 text-center font-medium">
-                                <div class="flex flex-col items-center justify-center space-y-2">
-                                    <div class="text-4xl text-gray-300"><i class="fas fa-microphone-slash"></i></div>
-                                    <p>No speech attempts recorded yet.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
+    {{--
+        One card list at every width, rather than a table for desktop and
+        cards for mobile. The table needed eight columns, which meant
+        horizontal scrolling on any real screen, and it duplicated every
+        field's markup — the same attempt was written out twice in this file
+        and the two copies had already drifted apart.
 
-        @if($attempts->hasPages())
-            <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
-                {{ $attempts->appends(request()->query())->links() }}
-            </div>
-        @endif
-    </div>
-
-    {{-- ─────────────── Mobile: collapsible cards ─────────────── --}}
-    <div class="md:hidden space-y-3">
+        The collapsed row carries what you scan by; the width that a desktop
+        has spare goes into showing more of it inline rather than into more
+        columns. Everything below md falls back to the stacked layout.
+    --}}
+    <div class="space-y-2">
         @forelse($attempts as $attempt)
-            <details data-key="{{ $attempt->id }}" class="bg-white shadow rounded-lg overflow-hidden">
-                <summary class="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none list-none">
-                    <div class="min-w-0">
+            <details data-key="{{ $attempt->id }}"
+                     class="bg-white shadow rounded-lg overflow-hidden border-l-4 {{ $attempt->is_correct ? 'border-green-400' : 'border-red-400' }}">
+                <summary class="flex items-center gap-4 px-4 py-3 cursor-pointer select-none list-none hover:bg-gray-50">
+                    {{-- Word: the thing you look for first, so it leads. --}}
+                    <div class="min-w-0 flex-1 md:flex-none md:w-56">
                         <div class="font-bold text-gray-900 text-lg truncate">
                             {{ $attempt->word?->word ?? 'Deleted Word' }}
                         </div>
+                        <div class="text-xs text-gray-500 truncate">
+                            <span class="md:hidden">{{ $attempt->created_at->diffForHumans() }}@if($attempt->word?->meaning) &middot; {{ $attempt->word->meaning }}@endif</span>
+                            <span class="hidden md:inline">{{ $attempt->word?->meaning ?? 'No meaning' }}</span>
+                        </div>
+                    </div>
+
+                    {{-- What the speech API actually heard, against the word
+                         above — the comparison the admin is here to make. --}}
+                    <div class="hidden md:flex min-w-0 flex-1 items-center gap-2">
+                        <i class="fas fa-arrow-right text-gray-300 text-xs flex-none"></i>
+                        @if($attempt->transcription)
+                            <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200 truncate">{{ $attempt->transcription }}</span>
+                        @else
+                            <span class="text-rose-500 italic text-xs">No result / Silenced</span>
+                        @endif
+                    </div>
+
+                    <div class="hidden lg:block w-40 min-w-0">
+                        @if($attempt->user)
+                            <div class="text-sm text-gray-900 truncate">{{ $attempt->user->name }}</div>
+                            <div class="text-xs text-gray-500 truncate">{{ $attempt->user->email }}</div>
+                        @else
+                            <span class="text-gray-400 italic text-xs">Anonymous/Guest</span>
+                        @endif
+                    </div>
+
+                    <div class="hidden md:block w-32 text-right" title="{{ $attempt->created_at }}">
+                        <div class="text-sm text-gray-900">{{ $attempt->created_at->format('M d, H:i') }}</div>
                         <div class="text-xs text-gray-500">{{ $attempt->created_at->diffForHumans() }}</div>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0">
+
+                    <div class="flex items-center gap-2 flex-none">
                         @if($attempt->is_correct)
                             <span class="js-status-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">Correct</span>
                         @else
@@ -201,8 +113,11 @@
                     </div>
                 </summary>
 
-                <div class="px-4 pb-4 pt-1 border-t border-gray-100 space-y-3 text-sm">
-                    <div>
+                {{-- Expanded: the fields that don't earn a place in a row you
+                     are scanning, laid out across the width instead of below
+                     it once there's room. --}}
+                <div class="border-t border-gray-100 px-4 py-4 grid gap-4 md:grid-cols-3 text-sm">
+                    <div class="md:hidden">
                         <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">User</div>
                         @if($attempt->user)
                             <div class="font-medium text-gray-900">{{ $attempt->user->name }}</div>
@@ -212,17 +127,7 @@
                         @endif
                     </div>
 
-                    @if($attempt->word)
-                        <div>
-                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">Word</div>
-                            <a href="{{ route('admin.words.edit', $attempt->word) }}" class="text-blue-700 font-semibold underline">
-                                {{ $attempt->word->word }} <i class="fas fa-pen text-xs"></i>
-                            </a>
-                            <span class="text-xs text-gray-500">— {{ $attempt->word->meaning ?? 'No meaning' }}</span>
-                        </div>
-                    @endif
-
-                    <div>
+                    <div class="md:hidden">
                         <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-0.5">Speech API Result</div>
                         @if($attempt->transcription)
                             <span class="bg-gray-100 px-2 py-1 rounded text-gray-800 font-mono text-sm border border-gray-200">{{ $attempt->transcription }}</span>
@@ -244,35 +149,47 @@
                         </div>
                     </div>
 
-                    @if($attempt->audio_path)
-                        <div>
-                            <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Recording</div>
+                    <div>
+                        <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Recording</div>
+                        @if($attempt->audio_path)
                             <audio controls preload="none" class="h-8 w-full outline-none">
                                 <source src="/audio/attempts/{{ $attempt->audio_path }}" type="audio/webm">
                             </audio>
-                        </div>
-                    @endif
+                        @else
+                            <span class="text-gray-400 italic text-xs">No recording</span>
+                        @endif
+                    </div>
 
-                    <div class="flex flex-wrap gap-2 pt-1">
-                        @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
-                            <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="js-accept-form flex-1"
-                                  data-confirm="Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?">
+                    <div>
+                        <div class="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">Actions</div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            @if(!$attempt->is_correct && $attempt->transcription && $attempt->word)
+                                <form method="POST" action="{{ route('admin.attempts.add-transliteration', $attempt) }}" class="js-accept-form"
+                                      data-confirm="Add &quot;{{ $attempt->transcription }}&quot; as a valid transliteration for &quot;{{ $attempt->word->word }}&quot;?">
+                                    @csrf
+                                    <button type="submit"
+                                            class="inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                            title="Add this API result as a valid pronunciation option">
+                                        <i class="fas fa-plus mr-1"></i> Accept
+                                    </button>
+                                </form>
+                            @endif
+                            <form method="POST" action="{{ route('admin.attempts.destroy', $attempt) }}">
                                 @csrf
+                                @method('DELETE')
                                 <button type="submit"
-                                        class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                                    <i class="fas fa-plus mr-1"></i> Accept
+                                        class="inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded border border-red-300 bg-white hover:bg-red-50 text-red-700 shadow-sm"
+                                        onclick="return confirm('Are you sure you want to delete this attempt log entry?')">
+                                    <i class="fas fa-trash-alt mr-1"></i> Delete
                                 </button>
                             </form>
-                        @endif
-                        <form method="POST" action="{{ route('admin.attempts.destroy', $attempt) }}" class="flex-1">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit"
-                                    class="w-full inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded border border-red-300 bg-white hover:bg-red-50 text-red-700 shadow-sm"
-                                    onclick="return confirm('Are you sure you want to delete this attempt log entry?')">
-                                <i class="fas fa-trash-alt mr-1"></i> Delete
-                            </button>
-                        </form>
+                            @if($attempt->word)
+                                <a href="{{ route('admin.words.edit', $attempt->word) }}"
+                                   class="inline-flex items-center justify-center px-3 py-2 text-xs font-semibold rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 shadow-sm">
+                                    <i class="fas fa-pen mr-1"></i> Edit word
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 </div>
             </details>
@@ -290,6 +207,7 @@
         @endif
     </div>
     </div>{{-- /#attempts-list --}}
+
 
     <style>
         details > summary { list-style: none; }
@@ -408,10 +326,14 @@
             }
 
             function markCorrect(form) {
-                // The row (desktop <tr>) or card (mobile <details>) this form lives in.
-                const scope = form.closest('tr') || form.closest('details');
-                if (scope) {
-                    scope.querySelectorAll('.js-status-badge').forEach(badge => {
+                const card = form.closest('details');
+                if (card) {
+                    // The card's own left edge is the status marker you scan
+                    // by, so it has to move with the badge.
+                    card.classList.remove('border-red-400');
+                    card.classList.add('border-green-400');
+
+                    card.querySelectorAll('.js-status-badge').forEach(badge => {
                         badge.classList.remove('bg-red-100', 'text-red-800', 'border-red-200');
                         badge.classList.add('bg-green-100', 'text-green-800', 'border-green-200');
                         badge.innerHTML = badge.innerHTML

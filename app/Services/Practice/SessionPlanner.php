@@ -170,6 +170,34 @@ class SessionPlanner
         // producing nothing at all is abandoned partway.
         $withinLevel = $this->eligible($stats, $last, lastWasMiss: false, userId: $userId, settings: $settings);
 
+        // Starting a fresh row while he is on a run of misses is how a sitting
+        // opens ሰ✗ ሰ✗ ሱ✗ ኸ✗ ኹ✗ ኺ✗ — two abandoned rows back to back, six
+        // failures before anything landed. Carrying on through a row he is
+        // already inside is fine, and the abandon rule bounds that; beginning
+        // a new one is not, so a win comes first.
+        $lastLevel = $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null;
+        $startingNewRow = $current !== null && $current !== $lastLevel;
+
+        if ($recovering && $startingNewRow && !$overrun && !$closing) {
+            // Deliberately not excluding the upcoming row here: if the next
+            // row is one he is strong in, opening it is the win. What must be
+            // avoided is the row he has just been missing in.
+            $win = $this->breather(
+                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
+                null,
+                $playlist,
+                $stats,
+                $settings,
+                $lastLevel,
+            );
+
+            // A preference, not a block: if there is no honest win to be had,
+            // getting on with the next row beats ending the sitting here.
+            if ($win) {
+                return $this->present($win, 'close', $position, $total, $current);
+            }
+        }
+
         if ($current !== null && !$overrun && !$closing) {
             $item = $this->fromFocus($withinLevel, $current);
 
@@ -217,7 +245,7 @@ class SessionPlanner
             $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true);
         }
 
-        $breather = $this->breather($eligible, $current, $playlist, $stats, $settings);
+        $breather = $this->breather($eligible, $current, $playlist, $stats, $settings, $lastWasMiss ? $lastLevel : null);
 
         return $this->present($breather, 'close', $position, $total, $current)
             ?? $this->finished($position, $total, 'exhausted');
@@ -462,7 +490,7 @@ class SessionPlanner
             ->pluck('level')
             ->all();
 
-        $candidates = $eligible->whereIn('level', $easyLevels);
+        $candidates = $this->winnable($eligible, $stats, $settings)->whereIn('level', $easyLevels);
 
         if ($candidates->isEmpty()) {
             return null;
@@ -483,20 +511,67 @@ class SessionPlanner
     }
 
     /**
+     * Items that can honestly be offered as a win right now.
+     *
+     * A win has to come from a row that is working today, not one that is easy
+     * on the thirty-day average. His ሰ family is an 89% row; he opened a real
+     * sitting by missing ሰ ሰ ሱ, and fifty attempts later the engine handed him
+     * ሶ from that same row to finish on — a letter he had been coached through
+     * minutes earlier, from the family he had already failed.
+     *
+     * This is one rule applied everywhere a win is chosen. It was written once
+     * for the closing row and left out of the other three places, which is why
+     * it did not hold.
+     */
+    private function winnable(Collection $eligible, Collection $stats, array $settings): Collection
+    {
+        $abandonAfter = (int) $settings['focus']['abandon_after_misses'];
+
+        $struggling = $stats
+            ->filter(fn ($i) => $i['level'] !== null)
+            ->groupBy('level')
+            ->filter(fn ($rows) => $rows->sum('session_misses') >= $abandonAfter)
+            ->keys()
+            ->map(fn ($level) => (int) $level)
+            ->all();
+
+        return $struggling === []
+            ? $eligible
+            : $eligible->reject(fn ($i) => in_array($i['level'], $struggling, true));
+    }
+
+    /**
      * A win, to break a run of misses or to close the sitting.
      *
      * Taken from a level he has already finished today where possible: he has
      * just had them right, so they are the surest thing in the category, and
      * using them does not eat into a level still to come.
      */
-    private function breather(Collection $eligible, ?int $current, array $playlist, Collection $stats, array $settings): ?array
-    {
+    private function breather(
+        Collection $eligible,
+        ?int $current,
+        array $playlist,
+        Collection $stats,
+        array $settings,
+        ?int $lastLevel = null,
+    ): ?array {
+        $eligible = $this->winnable($eligible, $stats, $settings);
+
+        // Also step away from the row he has just been missing in, even if it
+        // has not yet earned the abandon threshold. Two misses is enough to
+        // know that row is not where a win is going to come from.
+        if ($lastLevel !== null) {
+            $eligible = $eligible->where('level', '!=', $lastLevel);
+        }
+
         // Level places only: a mixed place has no row of its own to come back
         // to, and its letters are reachable through the easy pool anyway.
         $done = collect($playlist)
             ->where('type', 'level')
             ->pluck('level')
-            ->filter(fn ($level) => $level !== $current && $stats->where('level', $level)->sum('session_attempts') > 0)
+            ->filter(fn ($level) => $level !== $current
+                && $level !== $lastLevel
+                && $stats->where('level', $level)->sum('session_attempts') > 0)
             ->values()
             ->all();
 
@@ -766,8 +841,12 @@ class SessionPlanner
      * A win, taken from outside the level being worked. Strongest first —
      * this is the one place the engine should be picking something easy.
      */
-    private function winFrom(Collection $eligible, int $focus, array $settings): ?array
+    private function winFrom(Collection $eligible, int $focus, array $settings, ?Collection $stats = null): ?array
     {
+        if ($stats) {
+            $eligible = $this->winnable($eligible, $stats, $settings);
+        }
+
         $elsewhere = $eligible->where('level', '!=', $focus);
 
         if ($elsewhere->isEmpty()) {

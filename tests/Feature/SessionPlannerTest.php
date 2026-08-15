@@ -780,6 +780,79 @@ class SessionPlannerTest extends TestCase
         $this->assertNotSame(10, $plan['item']['level'], 'a run of misses breaks the row, close or not');
     }
 
+    /**
+     * A win has to come from a row working today, wherever the win is chosen.
+     * This rule was written once for the closing row and left out of the other
+     * three places, so a real sitting still finished on ሶ — from the ሰ family
+     * he had opened by missing ሰ ሰ ሱ, a letter he had been coached through
+     * minutes before.
+     */
+    public function test_no_win_is_taken_from_a_family_he_is_failing_today(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 6, 'practice.focus.abandon_after_misses' => 3]);
+
+        // An 89% row on the average, being missed today.
+        foreach ([['ሰ', 1], ['ሱ', 2], ['ሶ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 7, order: $order), 18, 2);
+        }
+
+        // Equally strong, and untouched today.
+        foreach ([['በ', 4], ['ቡ', 5], ['ቦ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 10, order: $order), 18, 2);
+        }
+
+        $seconds = 60;
+        foreach (['ሰ', 'ሰ', 'ሱ'] as $letter) {
+            $this->attemptNow(AmharicWord::where('word', $letter)->first(), correct: false, secondsAgo: $seconds);
+            $seconds -= 5;
+        }
+
+        foreach (range(1, 5) as $_) {
+            $plan = $this->next();
+
+            if ($plan['done']) {
+                break;
+            }
+
+            $this->assertNotSame(7, $plan['item']['level'], 'never a win from the row he is failing');
+            $this->attemptNow($plan['item'], correct: true, secondsAgo: 0);
+            Carbon::setTestNow(Carbon::now()->addSeconds(15));
+        }
+    }
+
+    /**
+     * Two abandoned rows back to back opened a real sitting ሰ✗ ሰ✗ ሱ✗ ኸ✗ ኹ✗
+     * ኺ✗ — six failures before anything landed. Carrying on through a row he
+     * is already inside is bounded by the abandon rule; beginning a new one on
+     * a run of misses is not, so a win comes first.
+     */
+    public function test_a_run_of_misses_puts_a_win_before_the_next_row(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 20, 'practice.misses.recover_after' => 2]);
+
+        foreach ([['ሰ', 1], ['ሱ', 2]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 7, order: $order), 4, 16); // failing row
+        }
+
+        foreach ([['ኸ', 3], ['ኹ', 4]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 19, order: $order), 4, 16); // the next hard row
+        }
+
+        foreach ([['ሀ', 5], ['ሁ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 1, order: $order), 19, 1); // something he has
+        }
+
+        $this->attemptNow(AmharicWord::where('word', 'ሰ')->first(), correct: false, secondsAgo: 40);
+        $this->attemptNow(AmharicWord::where('word', 'ሱ')->first(), correct: false, secondsAgo: 30);
+
+        $plan = $this->next();
+
+        $this->assertSame(1, $plan['item']['level'], 'a win before the next row, not straight into it');
+        $this->assertSame('close', $plan['slot']);
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

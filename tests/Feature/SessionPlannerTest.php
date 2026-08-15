@@ -632,6 +632,34 @@ class SessionPlannerTest extends TestCase
         $this->assertTrue($this->category->fresh()->mixesEasyLevels());
     }
 
+    /**
+     * The playlist ends on an easy level, but only for someone who reaches
+     * the end of it — and the cap cuts long before that. His first real
+     * sitting under this engine ran out in the middle of the ነ family and
+     * finished there: on a win, but on one of his hardest rows.
+     */
+    public function test_the_last_stretch_is_held_back_for_an_easy_close(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 8, 'practice.session.closing_reserve' => 3]);
+
+        foreach ([['ሰ', 1], ['ሱ', 2], ['ሲ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1); // easy
+        }
+
+        foreach ([['ገ', 4], ['ጉ', 5], ['ጊ', 6], ['ጋ', 7], ['ጌ', 8]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 27, order: $order), 2, 18); // hard
+        }
+
+        $served = $this->runSitting(8);
+        $closing = array_slice($served, -3);
+
+        foreach ($closing as $item) {
+            $this->assertSame(9, $item['level'], 'the sitting must finish on ground he is sure of');
+            $this->assertSame('close', $item['slot']);
+        }
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

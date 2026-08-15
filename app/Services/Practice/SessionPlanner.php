@@ -122,8 +122,16 @@ class SessionPlanner
         $segment = $this->currentSegment($playlist, $stats, $settings);
         $current = $segment['level'] ?? null;
 
-        // One more go at what he just missed, before anything else moves.
-        if ($lastWasMiss && !$overrun && !$recovering && $this->retryAllowed($last, $session, $settings)) {
+        // The last stretch belongs to the close, wherever the walk has got to.
+        // The playlist finishes on an easy level, but only for someone who
+        // reaches the end of it, and the cap cuts long before that: his first
+        // real sitting ran out in the middle of the ነ family and ended there.
+        $closing = $position > $total - (int) $settings['session']['closing_reserve'];
+
+        // One more go at what he just missed, before anything else moves —
+        // except in the closing stretch, where another attempt at the thing he
+        // has just failed is precisely what the close exists to avoid.
+        if ($lastWasMiss && !$overrun && !$recovering && !$closing && $this->retryAllowed($last, $session, $settings)) {
             $retry = $this->present($stats[$last->amharic_word_id] ?? null, 'focus', $position, $total, $current, retry: true);
 
             if ($retry) {
@@ -139,7 +147,7 @@ class SessionPlanner
         // producing nothing at all is abandoned partway.
         $withinLevel = $this->eligible($stats, $last, lastWasMiss: false, userId: $userId, settings: $settings);
 
-        if ($current !== null && !$overrun) {
+        if ($current !== null && !$overrun && !$closing) {
             $item = $this->fromFocus($withinLevel, $current);
 
             if ($item) {
@@ -150,7 +158,7 @@ class SessionPlanner
         // A mixed place: a short run of wins drawn from the easy levels rather
         // than a row walked through. Same items, spread out instead of
         // grouped, which is the only difference the two settings make.
-        if ($segment && $segment['type'] === 'mixed' && !$overrun) {
+        if (($closing || ($segment && $segment['type'] === 'mixed')) && !$overrun) {
             $win = $this->fromEasyLevels(
                 $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
                 $stats,
@@ -159,7 +167,7 @@ class SessionPlanner
             );
 
             if ($win) {
-                return $this->present($win, 'warm_up', $position, $total, null);
+                return $this->present($win, $closing ? 'close' : 'warm_up', $position, $total, null);
             }
         }
 

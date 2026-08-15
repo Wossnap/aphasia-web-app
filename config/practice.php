@@ -63,6 +63,16 @@ return [
         // A session that ends on a miss is extended by up to this many
         // guaranteed wins, so the last thing that happens is never a failure.
         'max_closing_extensions' => 3,
+
+        // The last stretch of a sitting, held back for something he can do.
+        //
+        // The playlist ends on an easy level, but only if he gets that far —
+        // and he does not, because the cap cuts wherever the walk has reached.
+        // His first real session under this engine ran out mid-way through the
+        // ነ family and finished there: on a win, but on one of his hardest
+        // rows. Reserving the end means the sitting always closes on ground he
+        // is sure of, however the middle of it went.
+        'closing_reserve' => 4,
     ],
 
     /*

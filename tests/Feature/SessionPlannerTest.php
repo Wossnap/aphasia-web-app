@@ -660,6 +660,66 @@ class SessionPlannerTest extends TestCase
         }
     }
 
+    /**
+     * The cap is a target, not a guillotine. Cutting a row in half to hit a
+     * round number is the opposite of working a level at a time.
+     */
+    public function test_it_finishes_the_row_rather_than_stopping_on_the_cap(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 6, 'practice.session.max_overrun' => 12]);
+
+        foreach ([['ሰ', 1], ['ሱ', 2], ['ሲ', 3], ['ሳ', 4], ['ሴ', 5], ['ስ', 6], ['ሶ', 7]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1);
+        }
+
+        foreach ([['ገ', 8], ['ጉ', 9]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 27, order: $order), 2, 18);
+        }
+
+        $served = $this->runSitting(20);
+
+        $this->assertGreaterThan(6, count($served), 'it should run past the cap to finish the row');
+
+        $closing = array_values(array_filter($served, fn ($s) => $s['slot'] === 'close'));
+
+        // One row, walked in order, and carried to its end — the letters it
+        // opened the sitting with are already behind it, so what is left is
+        // the rest of that same row rather than a fresh one.
+        $this->assertSame([9], array_values(array_unique(array_column($closing, 'level'))));
+        $this->assertSame(
+            ['ሲ', 'ሳ', 'ሴ', 'ስ', 'ሶ'],
+            array_column($closing, 'word'),
+            'the close finishes the row it was in, in order',
+        );
+    }
+
+    /**
+     * But it must not chain: finishing the row he is in the middle of is the
+     * point, opening a fresh one past the cap is not.
+     */
+    public function test_it_does_not_start_another_row_past_the_cap(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 4, 'practice.session.max_overrun' => 12]);
+
+        foreach ([['ሰ', 1], ['ሱ', 2]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 9, order: $order), 19, 1);
+        }
+
+        foreach ([['ለ', 3], ['ሉ', 4]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 2, order: $order), 18, 2);
+        }
+
+        $served = $this->runSitting(20);
+
+        $this->assertLessThanOrEqual(
+            4 + 12,
+            count($served),
+            'the ceiling must hold even when more easy rows are available',
+        );
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

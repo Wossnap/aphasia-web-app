@@ -67,12 +67,24 @@ return [
         // The last stretch of a sitting, held back for something he can do.
         //
         // The playlist ends on an easy level, but only if he gets that far —
-        // and he does not, because the cap cuts wherever the walk has reached.
-        // His first real session under this engine ran out mid-way through the
-        // ነ family and finished there: on a win, but on one of his hardest
-        // rows. Reserving the end means the sitting always closes on ground he
-        // is sure of, however the middle of it went.
+        // and he does not, because the cap arrives first. His first real
+        // session under this engine ran out mid-way through the ነ family and
+        // finished there: on a win, because that rule holds, but on one of his
+        // hardest rows. Reserving the end means the sitting always closes on
+        // ground he is sure of, however the middle of it went.
+        //
+        // Only used where the close is a run of loose wins. Where levels are
+        // walked as rows the reserve is a row, measured from the category
+        // rather than configured, so it is right for seven fidel and right for
+        // a category of three words without anyone setting it.
         'closing_reserve' => 4,
+
+        // max_attempts is a target, not a guillotine. Cutting a row in half to
+        // hit a round number is the opposite of working a level at a time, so
+        // the engine finishes the row it is on and then stops — 56 attempts
+        // with the ገ family complete beats 50 with it abandoned at ጋ. This is
+        // the ceiling that keeps "finish the row" from running away.
+        'max_overrun' => 12,
     ],
 
     /*

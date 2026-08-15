@@ -49,10 +49,6 @@ class SessionPlanner
         $last = $session->last();
         $lastWasMiss = $last && !$last->is_correct;
 
-        if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss)) {
-            return $finish;
-        }
-
         $overrun = $position > $total;
 
         // Moving on after two misses fixes the loop on one item, but not the
@@ -63,6 +59,10 @@ class SessionPlanner
 
         if ($category->worksByLevel()) {
             return $this->nextByLevel($stats, $session, $settings, $position, $total, $last, $lastWasMiss, $recovering, $overrun, $userId, $category);
+        }
+
+        if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss)) {
+            return $finish;
         }
 
         $slot = ($overrun || $recovering) ? 'close' : $this->slotFor($position, $total, $settings);
@@ -122,6 +122,35 @@ class SessionPlanner
         $segment = $this->currentSegment($playlist, $stats, $settings);
         $current = $segment['level'] ?? null;
 
+        // Where rows are walked, the close is a row too — reserving four loose
+        // wins in a category set to whole rows would be the engine arguing
+        // with its own setting. A row's length is read off the category, so it
+        // is seven for fidel and three for a category of three words without
+        // anyone configuring it.
+        $reserve = $mixEasy
+            ? (int) $settings['session']['closing_reserve']
+            : $this->typicalRowLength($stats);
+
+        $closing = $position > $total - $reserve;
+        $closeLevel = ($closing && !$mixEasy) ? $this->closingLevel($stats, $settings) : null;
+
+        // The cap is a target, not a guillotine. Cutting a row in half to hit
+        // a round number is the opposite of working a level at a time, so once
+        // past it the engine finishes the row it is on before stopping — and a
+        // ceiling keeps that from running away.
+        // "Under way" matters: past the cap it finishes the row he is in the
+        // middle of, but does not open a fresh one. Without that it would
+        // start another closing row every time one completed and only stop at
+        // the ceiling.
+        $closeRow = $closeLevel !== null ? $stats->where('level', $closeLevel) : collect();
+
+        $rowUnfinished = $closeRow->sum('session_attempts') > 0
+            && $closeRow->filter(fn ($i) => $i['session_attempts'] === 0)->isNotEmpty();
+
+        if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss, $rowUnfinished)) {
+            return $finish;
+        }
+
         // The last stretch belongs to the close, wherever the walk has got to.
         // The playlist finishes on an easy level, but only for someone who
         // reaches the end of it, and the cap cuts long before that: his first
@@ -152,6 +181,15 @@ class SessionPlanner
 
             if ($item) {
                 return $this->present($item, 'focus', $position, $total, $current);
+            }
+        }
+
+        // The closing row, walked in order like any other.
+        if ($closeLevel !== null) {
+            $item = $this->fromFocus($withinLevel, $closeLevel);
+
+            if ($item) {
+                return $this->present($item, 'close', $position, $total, $closeLevel);
             }
         }
 
@@ -348,6 +386,58 @@ class SessionPlanner
     }
 
     /**
+     * How long a row is in this category, taken from the category itself: the
+     * commonest level size. Seven for fidel, three for a category of three
+     * words, and nothing to configure either way.
+     */
+    private function typicalRowLength(Collection $stats): int
+    {
+        $sizes = $stats
+            ->filter(fn ($i) => $i['level'] !== null)
+            ->groupBy('level')
+            ->map->count();
+
+        return $sizes->isEmpty() ? 1 : (int) max(1, $sizes->median());
+    }
+
+    /**
+     * The easy row the sitting closes on.
+     *
+     * Finish one already under way before starting another, so this answers
+     * the same on every request while the row is being walked — otherwise the
+     * close would jump to a different family after each item.
+     */
+    private function closingLevel(Collection $stats, array $settings): ?int
+    {
+        $easyLevels = $this->levelsByBand($this->levelSummary($stats, $settings), $settings)['easy'];
+
+        if ($easyLevels->isEmpty()) {
+            return null;
+        }
+
+        $rows = $easyLevels->map(function ($level) use ($stats) {
+            $items = $stats->where('level', $level['level']);
+
+            return $level + [
+                'attempted' => $items->sum('session_attempts'),
+                'unmet' => $items->filter(fn ($i) => $i['session_attempts'] === 0)->count(),
+            ];
+        });
+
+        $underway = $rows->filter(fn ($r) => $r['attempted'] > 0 && $r['unmet'] > 0);
+
+        if ($underway->isNotEmpty()) {
+            return $underway->sortByDesc('attempted')->first()['level'];
+        }
+
+        $untouched = $rows->filter(fn ($r) => $r['attempted'] === 0);
+
+        return ($untouched->isNotEmpty() ? $untouched : $rows)
+            ->sortBy('last_worked')
+            ->first()['level'] ?? null;
+    }
+
+    /**
      * One letter from the easy levels, for a mixed place.
      *
      * Spread across families rather than taken from one, so a run of four
@@ -486,8 +576,14 @@ class SessionPlanner
     }
 
     /** Whether the sitting is over on length or on the clock. */
-    private function finishIfDone(Collection $session, array $settings, int $position, int $total, bool $lastWasMiss): ?array
-    {
+    private function finishIfDone(
+        Collection $session,
+        array $settings,
+        int $position,
+        int $total,
+        bool $lastWasMiss,
+        bool $rowUnfinished = false,
+    ): ?array {
         if ($session->isEmpty()) {
             return null;
         }
@@ -496,9 +592,17 @@ class SessionPlanner
         $elapsed = abs($session->first()->created_at->diffInMinutes(now()));
         $overrunBy = $position - $total;
         $allowedOverrun = (int) $settings['session']['max_closing_extensions'];
+        $ceiling = (int) $settings['session']['max_overrun'];
 
         $atCap = $position > $total;
         $outOfTime = $elapsed >= $maxMinutes;
+
+        // Past the cap with a row still open: finish the row. Fifty-six
+        // attempts with the family complete beats fifty with it abandoned
+        // halfway, which is what "a level at a time" has to mean.
+        if ($rowUnfinished && $overrunBy <= $ceiling) {
+            return null;
+        }
 
         if (!$atCap && !$outOfTime) {
             return null;

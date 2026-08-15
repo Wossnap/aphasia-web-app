@@ -4,23 +4,22 @@
 @section('header', 'Work On These With Him')
 
 @section('content')
+    {{--
+        One card per family, not per letter. A single letter is not the unit of
+        the work: get the first of a row and the rest of it follows, so what
+        belongs on screen is the family, the letter to start from, and whether
+        that letter is the one going wrong.
+    --}}
     <p class="mb-4 text-sm text-gray-600 max-w-3xl">
-        Items he is getting nowhere with alone — below {{ round($needsHelpBelow * 100) }}% and not
-        improving. He still meets them in practice; nothing here is withheld from him. These are
-        simply where sitting with him for a session or two is worth more than another solo
-        attempt. The recogniser's actual output is shown beside each one, because it is usually
-        obvious at a glance whether the trouble is his speech or the machine's ear.
+        Families he is getting nowhere with alone. Start on the first letter — the rest of the row
+        usually follows once that one lands. Nothing here is withheld from him; these are simply
+        where sitting together beats another solo attempt.
     </p>
 
     <form method="GET" class="mb-6 bg-white shadow rounded-lg p-4 flex flex-wrap items-end gap-4">
         <div>
             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Category</label>
             <select name="category_id" class="block w-64 border-gray-300 rounded-md shadow-sm text-sm">
-                {{--
-                    Counts beside each name, and the page opens on the highest
-                    of them: which category needs the time is the first thing
-                    you would otherwise have to go and find out.
-                --}}
                 @foreach($categories->sortByDesc(fn ($c) => $needingHelp[$c->id] ?? 0) as $c)
                     <option value="{{ $c->id }}" {{ $category && $category->id === $c->id ? 'selected' : '' }}>
                         {{ $c->name }}@if(($needingHelp[$c->id] ?? 0) > 0) — {{ $needingHelp[$c->id] }} need you @endif
@@ -42,81 +41,74 @@
         </button>
     </form>
 
-    @if($familyRows->isNotEmpty())
-        {{--
-            Grouped first, because the family is the unit that is actually
-            stuck. Seven letters of one consonant is one thing to sit down and
-            work through, not seven separate problems.
-        --}}
-        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Stuck families</h2>
-        <div class="mb-6 flex flex-wrap gap-3">
-            @foreach($familyRows as $family)
-                <div class="bg-white shadow rounded-lg px-4 py-3 border-l-4 border-amber-400">
-                    <div class="text-2xl font-semibold" style="font-family: 'Noto Sans Ethiopic', sans-serif;">
-                        {{ implode(' ', $family['letters']) }}
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">
-                        {{ $family['count'] }} {{ Str::plural('letter', $family['count']) }} · avg {{ $family['accuracy'] }}%
+    @forelse($families as $family)
+        <div class="bg-white shadow rounded-lg mb-4 border-l-4 {{ $family['first_stuck'] ? 'border-red-500' : 'border-amber-400' }}">
+            <div class="p-4 flex flex-wrap items-start gap-6">
+
+                {{-- The letter to start from, given the room it deserves. --}}
+                <div class="text-center">
+                    <div class="text-6xl leading-none font-semibold {{ $family['first_stuck'] ? 'text-red-600' : 'text-gray-800' }}"
+                         style="font-family: 'Noto Sans Ethiopic', sans-serif;">{{ $family['first']['word'] }}</div>
+                    <div class="mt-1 text-xs uppercase tracking-wider {{ $family['first_stuck'] ? 'text-red-600 font-semibold' : 'text-gray-400' }}">
+                        {{ $family['first_stuck'] ? 'start here' : 'first letter' }}
                     </div>
                 </div>
-            @endforeach
-        </div>
-    @endif
 
-    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">
-        Items needing you ({{ $rows->count() }})
-    </h2>
+                <div class="flex-1 min-w-[18rem]">
+                    {{-- The whole row, in the order he practises it, each letter
+                         carrying its own score so the shape of the trouble is
+                         visible without reading anything. --}}
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach($family['letters'] as $letter)
+                            @php
+                                $pct = $letter['accuracy'] === null ? null : round($letter['accuracy'] * 100);
+                                $tone = match (true) {
+                                    $pct === null => 'bg-gray-50 text-gray-400 border-gray-200',
+                                    $pct < round($needsHelpBelow * 100) => 'bg-red-50 text-red-700 border-red-200',
+                                    $pct < 65 => 'bg-amber-50 text-amber-700 border-amber-200',
+                                    default => 'bg-green-50 text-green-700 border-green-200',
+                                };
+                            @endphp
+                            <div class="border rounded px-2 py-1 text-center min-w-[3rem] {{ $tone }}">
+                                <div class="text-xl leading-tight" style="font-family: 'Noto Sans Ethiopic', sans-serif;">{{ $letter['word'] }}</div>
+                                <div class="text-[0.65rem] leading-tight">{{ $pct === null ? '—' : $pct . '%' }}</div>
+                            </div>
+                        @endforeach
+                    </div>
 
-    @forelse($rows as $row)
-        <div class="bg-white shadow rounded-lg mb-3 p-4 border-l-4 border-red-400">
-            <div class="flex flex-wrap items-start gap-4">
-                <div class="text-4xl font-semibold leading-none"
-                     style="font-family: 'Noto Sans Ethiopic', sans-serif;">{{ $row['word'] }}</div>
-
-                <div class="flex-1 min-w-[14rem]">
-                    <div class="text-sm text-gray-700">
-                        <span class="font-semibold">{{ round($row['accuracy'] * 100) }}%</span>
-                        over {{ $row['attempts'] }} {{ Str::plural('try', $row['attempts']) }}
-                        @if($row['miss_streak'] > 1)
-                            · <span class="text-red-600 font-medium">{{ $row['miss_streak'] }} misses in a row</span>
+                    <div class="mt-3 text-sm text-gray-600">
+                        {{ $family['stuck'] }} of {{ count($family['letters']) }} stuck
+                        @if($family['accuracy'] !== null)
+                            · row average {{ round($family['accuracy'] * 100) }}%
+                        @endif
+                        · {{ $family['attempts'] }} {{ Str::plural('try', $family['attempts']) }}
+                        @if($family['worst_streak'] > 2)
+                            · <span class="text-red-600 font-medium">{{ $family['worst_streak'] }} misses in a row</span>
                         @endif
                     </div>
 
-                    @if($row['heard'])
-                        <div class="mt-2 text-sm text-gray-600">
-                            <span class="text-xs uppercase tracking-wider text-gray-400">Recogniser heard</span>
-                            <div class="mt-1 flex flex-wrap gap-2">
-                                @foreach($row['heard'] as $heard)
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-gray-100 text-gray-700"
-                                          style="font-family: 'Noto Sans Ethiopic', sans-serif;">
-                                        {{ $heard['text'] }}
-                                        <span class="text-xs text-gray-400">×{{ $heard['times'] }}</span>
-                                    </span>
+                    @if($family['heard'])
+                        <div class="mt-2 text-sm text-gray-500">
+                            <span class="text-xs uppercase tracking-wider text-gray-400">Heard for {{ $family['first']['word'] }}</span>
+                            <span class="ml-1">
+                                @foreach($family['heard'] as $heard)
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 mr-1"
+                                          style="font-family: 'Noto Sans Ethiopic', sans-serif;">{{ $heard['text'] }}<span class="text-xs text-gray-400">×{{ $heard['times'] }}</span></span>
                                 @endforeach
-                            </div>
-                        </div>
-                    @endif
-
-                    @if($row['confused_with'])
-                        <div class="mt-2 text-xs text-gray-500">
-                            Gets confused with
-                            <span style="font-family: 'Noto Sans Ethiopic', sans-serif;">
-                                {{ implode(' ', $row['confused_with']) }}
                             </span>
-                            — the engine keeps these apart in a session.
                         </div>
                     @endif
                 </div>
 
-                <a href="{{ route('admin.attempts.index', ['status' => 'incorrect']) }}"
-                   class="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap">
-                    Listen to attempts <i class="fas fa-arrow-right ml-1"></i>
+                <a href="{{ route('practice.level', ['categorySlug' => $category->slug, 'level' => $family['level']]) }}"
+                   class="inline-flex items-center px-3 py-2 text-sm font-semibold rounded-md bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap">
+                    Practise this row <i class="fas fa-arrow-right ml-1.5"></i>
                 </a>
             </div>
         </div>
     @empty
         <div class="bg-white shadow rounded-lg p-6 text-center text-gray-500">
-            Nothing in this category needs you right now — everything he has tried is above
+            Nothing in this category needs you right now — every family he has tried is above
             {{ round($needsHelpBelow * 100) }}%.
         </div>
     @endforelse

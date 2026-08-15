@@ -6,10 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\SpeechAttempt;
 use App\Models\User;
-use App\Services\Practice\ConfusionGraph;
 use App\Services\Practice\ItemStats;
-use App\Services\Practice\WordFamily;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,11 +23,8 @@ use Illuminate\Support\Facades\DB;
  */
 class PracticeFocusController extends Controller
 {
-    public function __construct(
-        private ItemStats $stats,
-        private WordFamily $families,
-        private ConfusionGraph $confusions,
-    ) {
+    public function __construct(private ItemStats $stats)
+    {
     }
 
     public function index(Request $request)
@@ -47,61 +43,17 @@ class PracticeFocusController extends Controller
             ? $categories->firstWhere('id', (int) $request->query('category_id'))
             : $categories->sortByDesc(fn ($c) => $needingHelp[$c->id] ?? 0)->first();
 
-        $rows = collect();
-        $familyRows = collect();
-
-        if ($category) {
-            $items = $this->stats->forCategory($userId, $category);
-            $confusions = $this->confusions->graph($userId);
-
-            $needsHelpBelow = (float) config('practice.bands.needs_help_below', 0.25);
-
-            $rows = $items
-                // Items he has actually tried and is getting nowhere with on
-                // his own. Never attempted is not "needs help", it is "not
-                // started". These are not withheld from him — he still meets
-                // them in practice — they are simply the ones worth your time.
-                ->filter(fn ($i) => $i['accuracy'] !== null && $i['accuracy'] < $needsHelpBelow)
-                ->map(function ($item) use ($confusions, $items) {
-                    $heard = $this->whatCameBack($item['word_id']);
-
-                    return $item + [
-                        'family' => $this->families->of($item['word']),
-                        'heard' => $heard,
-                        'confused_with' => collect(array_keys($confusions[$item['word_id']] ?? []))
-                            ->map(fn ($id) => $items[$id]['word'] ?? null)
-                            ->filter()
-                            ->values()
-                            ->all(),
-                    ];
-                })
-                ->sortBy('accuracy')
-                ->values();
-
-            // Grouped by consonant family, because the family is the unit that
-            // is actually stuck: pulling one letter out and leaving its six
-            // siblings in rotation just spreads the same wall over seven items.
-            $familyRows = $rows
-                ->filter(fn ($r) => $r['family'] !== null)
-                ->groupBy('family')
-                ->map(fn ($group) => [
-                    'letters' => $group->pluck('word')->all(),
-                    'count' => $group->count(),
-                    'accuracy' => round($group->avg('accuracy') * 100),
-                ])
-                ->sortByDesc('count')
-                ->values();
-        }
+        $needsHelpBelow = (float) config('practice.bands.needs_help_below', 0.25);
+        $families = $category ? $this->familiesNeedingWork($userId, $category, $needsHelpBelow) : collect();
 
         return view('admin.practice-focus.index', [
             'categories' => $categories,
             'users' => $users,
             'category' => $category,
             'userId' => $userId,
-            'rows' => $rows,
-            'familyRows' => $familyRows,
+            'families' => $families,
             'needingHelp' => $needingHelp,
-            'needsHelpBelow' => (float) config('practice.bands.needs_help_below', 0.25),
+            'needsHelpBelow' => $needsHelpBelow,
         ]);
     }
 
@@ -132,6 +84,55 @@ class PracticeFocusController extends Controller
             ->get()
             ->countBy('category_id')
             ->all();
+    }
+
+    /**
+     * The families worth sitting down with, whole.
+     *
+     * A single letter is not the unit of the work: get ገ and the rest of the
+     * row follows, so what you need in front of you is the family, its first
+     * letter, and whether that first letter is the one going wrong. Listing
+     * forty-nine letters separately was the same information arranged so that
+     * nobody could act on it.
+     *
+     * @return Collection<int, array>
+     */
+    private function familiesNeedingWork(?int $userId, Category $category, float $needsHelpBelow): Collection
+    {
+        return $this->stats->forCategory($userId, $category)
+            ->filter(fn ($i) => $i['level'] !== null)
+            ->groupBy('level')
+            ->map(function ($rows, $level) use ($needsHelpBelow) {
+                // The category's own sequence, so the first letter is the one
+                // he would start from.
+                $letters = $rows->sortBy(fn ($i) => $i['order'] ?? PHP_INT_MAX)->values();
+                $first = $letters->first();
+                $known = $letters->filter(fn ($i) => $i['accuracy'] !== null);
+                $stuck = $known->filter(fn ($i) => $i['accuracy'] < $needsHelpBelow);
+
+                return [
+                    'level' => (int) $level,
+                    'first' => $first,
+                    // Whether the letter to start from is itself the problem.
+                    // If it is, this family is where an hour with him buys the
+                    // most, because the rest of the row follows from it.
+                    'first_stuck' => $first['accuracy'] !== null && $first['accuracy'] < $needsHelpBelow,
+                    'letters' => $letters->all(),
+                    'stuck' => $stuck->count(),
+                    'attempts' => $letters->sum('attempts'),
+                    'accuracy' => $known->isEmpty() ? null : $known->avg('accuracy'),
+                    'worst_streak' => $letters->max('miss_streak'),
+                    // What came back for the letter you would start on.
+                    'heard' => $this->whatCameBack($first['word_id']),
+                ];
+            })
+            ->filter(fn ($f) => $f['stuck'] > 0)
+            ->sortBy([
+                // Families whose first letter is stuck come first.
+                fn ($a, $b) => ($b['first_stuck'] <=> $a['first_stuck']),
+                fn ($a, $b) => ($a['accuracy'] ?? 1) <=> ($b['accuracy'] ?? 1),
+            ])
+            ->values();
     }
 
     /**

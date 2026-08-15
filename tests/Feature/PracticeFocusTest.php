@@ -36,10 +36,10 @@ class PracticeFocusTest extends TestCase
         parent::tearDown();
     }
 
-    private function itemWithHistory(string $word, int $correct, int $wrong, User $user, string $heard = 'x'): AmharicWord
+    private function itemWithHistory(string $word, int $correct, int $wrong, User $user, string $heard = 'x', int $level = 1, ?int $order = null): AmharicWord
     {
-        $item = AmharicWord::create(['word' => $word, 'transliterations' => [$word]]);
-        $this->category->words()->attach($item->id, ['level' => 1]);
+        $item = AmharicWord::create(['word' => $word, 'transliterations' => [$word], 'order' => $order]);
+        $this->category->words()->attach($item->id, ['level' => $level]);
 
         foreach (range(1, $correct + $wrong) as $n) {
             $attempt = new SpeechAttempt([
@@ -56,22 +56,48 @@ class PracticeFocusTest extends TestCase
         return $item;
     }
 
-    public function test_it_lists_what_he_cannot_do_alone_and_leaves_out_what_he_can(): void
+    public function test_it_lists_families_that_need_work_and_leaves_out_those_that_do_not(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        $stuck = $this->itemWithHistory('ጠ', 1, 19, $admin, heard: 'ደሮ');
-        $fine = $this->itemWithHistory('ሰ', 18, 2, $admin);
+        $this->itemWithHistory('ጠ', 1, 19, $admin, heard: 'ደሮ', level: 5, order: 1);
+        $this->itemWithHistory('ሰ', 18, 2, $admin, level: 9, order: 2);
 
         $response = $this->actingAs($admin)
             ->get(route('admin.practice-focus.index', ['category_id' => $this->category->id, 'user_id' => $admin->id]));
 
         $response->assertOk();
 
-        $words = collect($response->viewData('rows'))->pluck('word')->all();
+        $levels = collect($response->viewData('families'))->pluck('level')->all();
 
-        $this->assertContains($stuck->word, $words);
-        $this->assertNotContains($fine->word, $words, 'an item he can do does not need your time');
+        $this->assertContains(5, $levels);
+        $this->assertNotContains(9, $levels, 'a family he can do does not need your time');
+    }
+
+    /**
+     * Get the first of a row and the rest usually follows, so the family whose
+     * first letter is the problem is the one worth an hour.
+     */
+    public function test_it_puts_the_family_whose_first_letter_is_stuck_at_the_top(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        // First letter fine, a later one stuck.
+        $this->itemWithHistory('ሰ', 18, 2, $admin, level: 9, order: 1);
+        $this->itemWithHistory('ሱ', 1, 19, $admin, level: 9, order: 2);
+
+        // First letter itself stuck.
+        $this->itemWithHistory('ጠ', 1, 19, $admin, level: 5, order: 3);
+        $this->itemWithHistory('ጡ', 1, 19, $admin, level: 5, order: 4);
+
+        $families = $this->actingAs($admin)
+            ->get(route('admin.practice-focus.index', ['category_id' => $this->category->id, 'user_id' => $admin->id]))
+            ->viewData('families');
+
+        $this->assertSame(5, $families[0]['level']);
+        $this->assertTrue($families[0]['first_stuck']);
+        $this->assertSame('ጠ', $families[0]['first']['word'], 'the letter to start from');
+        $this->assertFalse($families[1]['first_stuck']);
     }
 
     /**
@@ -82,14 +108,14 @@ class PracticeFocusTest extends TestCase
     public function test_it_shows_what_the_recogniser_actually_returned(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $this->itemWithHistory('ጠ', 1, 19, $admin, heard: 'ደሮ');
+        $this->itemWithHistory('ጠ', 1, 19, $admin, heard: 'ደሮ', level: 5, order: 1);
 
-        $rows = $this->actingAs($admin)
+        $families = $this->actingAs($admin)
             ->get(route('admin.practice-focus.index', ['category_id' => $this->category->id, 'user_id' => $admin->id]))
-            ->viewData('rows');
+            ->viewData('families');
 
-        $this->assertSame('ደሮ', $rows[0]['heard'][0]['text']);
-        $this->assertSame(19, $rows[0]['heard'][0]['times']);
+        $this->assertSame('ደሮ', $families[0]['heard'][0]['text']);
+        $this->assertSame(19, $families[0]['heard'][0]['times']);
     }
 
     /**
@@ -97,20 +123,21 @@ class PracticeFocusTest extends TestCase
      * stuck: pulling one letter out and leaving its siblings in rotation just
      * spreads the same wall over seven items.
      */
-    public function test_it_groups_stuck_letters_by_family(): void
+    public function test_a_family_is_one_card_rather_than_a_letter_each(): void
     {
         $admin = User::factory()->create(['is_admin' => true]);
 
-        foreach (['ጠ', 'ጡ', 'ጢ'] as $letter) {
-            $this->itemWithHistory($letter, 1, 19, $admin);
+        foreach ([['ጠ', 1], ['ጡ', 2], ['ጢ', 3]] as [$letter, $order]) {
+            $this->itemWithHistory($letter, 1, 19, $admin, level: 5, order: $order);
         }
 
         $families = $this->actingAs($admin)
             ->get(route('admin.practice-focus.index', ['category_id' => $this->category->id, 'user_id' => $admin->id]))
-            ->viewData('familyRows');
+            ->viewData('families');
 
         $this->assertCount(1, $families, 'three letters of one consonant is one thing to work on');
-        $this->assertSame(3, $families[0]['count']);
+        $this->assertSame(3, $families[0]['stuck']);
+        $this->assertSame(['ጠ', 'ጡ', 'ጢ'], array_column($families[0]['letters'], 'word'));
     }
 
     /**

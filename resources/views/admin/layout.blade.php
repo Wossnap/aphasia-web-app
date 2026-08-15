@@ -46,6 +46,10 @@
                                class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.word-progress.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
                                 Word Progress
                             </a>
+                            <a href="{{ route('admin.progress-by-level.index') }}"
+                               class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.progress-by-level.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
+                                By Level
+                            </a>
                             <a href="{{ route('admin.analytics.index') }}"
                                class="inline-flex items-center px-1 pt-1 border-b-2 {{ request()->routeIs('admin.analytics.*') ? 'border-white text-white' : 'border-transparent text-blue-100 hover:text-white hover:border-blue-300' }} text-sm font-medium">
                                 Analytics
@@ -96,6 +100,10 @@
                     <a href="{{ route('admin.word-progress.index') }}"
                        class="block pl-3 pr-4 py-2 {{ request()->routeIs('admin.word-progress.*') ? 'bg-blue-700 text-white' : 'text-blue-100 hover:text-white hover:bg-blue-500' }} text-base font-medium">
                         Word Progress
+                    </a>
+                    <a href="{{ route('admin.progress-by-level.index') }}"
+                       class="block pl-3 pr-4 py-2 {{ request()->routeIs('admin.progress-by-level.*') ? 'bg-blue-700 text-white' : 'text-blue-100 hover:text-white hover:bg-blue-500' }} text-base font-medium">
+                        By Level
                     </a>
                     <a href="{{ route('admin.analytics.index') }}"
                        class="block pl-3 pr-4 py-2 {{ request()->routeIs('admin.analytics.*') ? 'bg-blue-700 text-white' : 'text-blue-100 hover:text-white hover:bg-blue-500' }} text-base font-medium">

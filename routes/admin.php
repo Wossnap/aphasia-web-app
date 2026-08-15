@@ -77,6 +77,9 @@ Route::middleware(['web', 'admin'])->group(function () {
     // and which need someone sitting with him.
     Route::get('practice-focus', [\App\Http\Controllers\Admin\PracticeFocusController::class, 'index'])->name('admin.practice-focus.index');
 
+    // A whole category level by level, first to last, with a score per letter.
+    Route::get('progress-by-level', [\App\Http\Controllers\Admin\CategoryProgressController::class, 'index'])->name('admin.progress-by-level.index');
+
     // Per-word progress tracking
     Route::get('word-progress', [\App\Http\Controllers\Admin\WordProgressController::class, 'index'])->name('admin.word-progress.index');
     Route::get('word-progress/categories', [\App\Http\Controllers\Admin\WordProgressController::class, 'categories'])->name('admin.word-progress.categories');

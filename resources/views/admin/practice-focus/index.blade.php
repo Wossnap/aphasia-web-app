@@ -55,26 +55,10 @@
                 </div>
 
                 <div class="flex-1 min-w-[18rem]">
-                    {{-- The whole row, in the order he practises it, each letter
-                         carrying its own score so the shape of the trouble is
-                         visible without reading anything. --}}
-                    <div class="flex flex-wrap gap-1.5">
-                        @foreach($family['letters'] as $letter)
-                            @php
-                                $pct = $letter['accuracy'] === null ? null : round($letter['accuracy'] * 100);
-                                $tone = match (true) {
-                                    $pct === null => 'bg-gray-50 text-gray-400 border-gray-200',
-                                    $pct < round($needsHelpBelow * 100) => 'bg-red-50 text-red-700 border-red-200',
-                                    $pct < 65 => 'bg-amber-50 text-amber-700 border-amber-200',
-                                    default => 'bg-green-50 text-green-700 border-green-200',
-                                };
-                            @endphp
-                            <div class="border rounded px-2 py-1 text-center min-w-[3rem] {{ $tone }}">
-                                <div class="text-xl leading-tight" style="font-family: 'Noto Sans Ethiopic', sans-serif;">{{ $letter['word'] }}</div>
-                                <div class="text-[0.65rem] leading-tight">{{ $pct === null ? '—' : $pct . '%' }}</div>
-                            </div>
-                        @endforeach
-                    </div>
+                    @include('admin.partials.letter-row', [
+                        'letters' => $family['letters'],
+                        'needsHelpBelow' => $needsHelpBelow,
+                    ])
 
                     <div class="mt-3 text-sm text-gray-600">
                         {{ $family['stuck'] }} of {{ count($family['letters']) }} stuck

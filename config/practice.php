@@ -60,10 +60,6 @@ return [
         // every request slower.
         'recent_attempt_window' => 600,
 
-        // A session that ends on a miss is extended by up to this many
-        // guaranteed wins, so the last thing that happens is never a failure.
-        'max_closing_extensions' => 3,
-
         // The last stretch of a sitting, held back for something he can do.
         //
         // The playlist ends on an easy level, but only if he gets that far —

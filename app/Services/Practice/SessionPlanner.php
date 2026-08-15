@@ -151,12 +151,6 @@ class SessionPlanner
             return $finish;
         }
 
-        // The last stretch belongs to the close, wherever the walk has got to.
-        // The playlist finishes on an easy level, but only for someone who
-        // reaches the end of it, and the cap cuts long before that: his first
-        // real sitting ran out in the middle of the ነ family and ended there.
-        $closing = $position > $total - (int) $settings['session']['closing_reserve'];
-
         // One more go at what he just missed, before anything else moves —
         // except in the closing stretch, where another attempt at the thing he
         // has just failed is precisely what the close exists to avoid.
@@ -184,8 +178,13 @@ class SessionPlanner
             }
         }
 
-        // The closing row, walked in order like any other.
-        if ($closeLevel !== null) {
+        // The closing row, walked in order like any other — but the recovery
+        // rule still applies inside it. Without that check the close walked
+        // straight through a run of misses: his ቢ ባ ቤ ብ ቦ ended a real sitting
+        // with five failures in a row, which is the exact thing the engine
+        // exists to prevent, happening in the part meant to protect him from
+        // it.
+        if ($closeLevel !== null && !$recovering) {
             $item = $this->fromFocus($withinLevel, $closeLevel);
 
             if ($item) {
@@ -409,20 +408,32 @@ class SessionPlanner
      */
     private function closingLevel(Collection $stats, array $settings): ?int
     {
+        $abandonAfter = (int) $settings['focus']['abandon_after_misses'];
         $easyLevels = $this->levelsByBand($this->levelSummary($stats, $settings), $settings)['easy'];
 
         if ($easyLevels->isEmpty()) {
             return null;
         }
 
-        $rows = $easyLevels->map(function ($level) use ($stats) {
-            $items = $stats->where('level', $level['level']);
+        $rows = $easyLevels
+            ->map(function ($level) use ($stats) {
+                $items = $stats->where('level', $level['level']);
 
-            return $level + [
-                'attempted' => $items->sum('session_attempts'),
-                'unmet' => $items->filter(fn ($i) => $i['session_attempts'] === 0)->count(),
-            ];
-        });
+                return $level + [
+                    'attempted' => $items->sum('session_attempts'),
+                    'missed' => $items->sum('session_misses'),
+                    'unmet' => $items->filter(fn ($i) => $i['session_attempts'] === 0)->count(),
+                ];
+            })
+            // A level that is easy on paper but going badly today is not a
+            // close. His በ family is a 78% row, and on the day it mattered he
+            // had already missed በ በ ቡ before the close resumed it and handed
+            // him five more. Today's evidence outranks the average.
+            ->filter(fn ($r) => $r['missed'] < $abandonAfter);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
 
         $underway = $rows->filter(fn ($r) => $r['attempted'] > 0 && $r['unmet'] > 0);
 
@@ -591,7 +602,6 @@ class SessionPlanner
         $maxMinutes = (int) $settings['session']['max_minutes'];
         $elapsed = abs($session->first()->created_at->diffInMinutes(now()));
         $overrunBy = $position - $total;
-        $allowedOverrun = (int) $settings['session']['max_closing_extensions'];
         $ceiling = (int) $settings['session']['max_overrun'];
 
         $atCap = $position > $total;
@@ -608,10 +618,13 @@ class SessionPlanner
             return null;
         }
 
-        // Never end on a miss. Past the cap it keeps going only long enough to
-        // land a win, and only for a few items, so a bad patch at the end
-        // cannot extend the sitting indefinitely.
-        if ($lastWasMiss && $overrunBy <= $allowedOverrun) {
+        // Never end on a miss, bounded by the same ceiling as everything else.
+        //
+        // This used to have a small budget of its own, counted from the cap —
+        // which the row-finishing overrun had already spent by the time it was
+        // needed. A real sitting reached 55 of a target 50, so the budget of 3
+        // was long gone, and it ended him on ቦ✗ after five misses in a row.
+        if ($lastWasMiss && $overrunBy <= $ceiling) {
             return null;
         }
 

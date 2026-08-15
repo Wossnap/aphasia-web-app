@@ -720,6 +720,66 @@ class SessionPlannerTest extends TestCase
         );
     }
 
+    /**
+     * A level that is easy on paper but going badly today is not a close.
+     * His በ family is a 78% row; on the day it mattered he had already missed
+     * በ በ ቡ, and the close resumed it and handed him five more.
+     */
+    public function test_the_close_avoids_an_easy_level_he_is_failing_today(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 4, 'practice.focus.abandon_after_misses' => 3]);
+
+        // Easy on paper, but going badly right now.
+        foreach ([['በ', 1], ['ቡ', 2], ['ቢ', 3]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 10, order: $order), 16, 4);
+        }
+
+        // Equally easy, and untouched today.
+        foreach ([['ሰ', 4], ['ሱ', 5], ['ሲ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 7, order: $order), 16, 4);
+        }
+
+        $seconds = 60;
+        foreach (['በ', 'በ', 'ቡ'] as $letter) {
+            $this->attemptNow(AmharicWord::where('word', $letter)->first(), correct: false, secondsAgo: $seconds);
+            $seconds -= 5;
+        }
+
+        $plan = $this->next();
+
+        $this->assertNotSame(10, $plan['item']['level'], 'today beats the average');
+        $this->assertSame(7, $plan['item']['level']);
+    }
+
+    /**
+     * The recovery rule applies inside the closing row too. Without it the
+     * close walked straight through a run of misses and ended a real sitting
+     * ቢ✗ ባ✗ ቤ✗ ብ✗ ቦ✗ — the exact thing the engine exists to prevent, in the
+     * part meant to protect him from it.
+     */
+    public function test_the_close_does_not_walk_through_a_run_of_misses(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 4, 'practice.misses.recover_after' => 2]);
+
+        foreach ([['በ', 1], ['ቡ', 2], ['ቢ', 3], ['ባ', 4]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 10, order: $order), 16, 4);
+        }
+
+        foreach ([['ሰ', 5], ['ሱ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 7, order: $order), 19, 1);
+        }
+
+        // Two misses in a row inside the closing row.
+        $this->attemptNow(AmharicWord::where('word', 'በ')->first(), correct: false, secondsAgo: 40);
+        $this->attemptNow(AmharicWord::where('word', 'ቡ')->first(), correct: false, secondsAgo: 30);
+
+        $plan = $this->next();
+
+        $this->assertNotSame(10, $plan['item']['level'], 'a run of misses breaks the row, close or not');
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

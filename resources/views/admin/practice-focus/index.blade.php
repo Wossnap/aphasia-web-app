@@ -16,9 +16,14 @@
         <div>
             <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Category</label>
             <select name="category_id" class="block w-64 border-gray-300 rounded-md shadow-sm text-sm">
-                @foreach($categories as $c)
+                {{--
+                    Counts beside each name, and the page opens on the highest
+                    of them: which category needs the time is the first thing
+                    you would otherwise have to go and find out.
+                --}}
+                @foreach($categories->sortByDesc(fn ($c) => $needingHelp[$c->id] ?? 0) as $c)
                     <option value="{{ $c->id }}" {{ $category && $category->id === $c->id ? 'selected' : '' }}>
-                        {{ $c->name }}
+                        {{ $c->name }}@if(($needingHelp[$c->id] ?? 0) > 0) — {{ $needingHelp[$c->id] }} need you @endif
                     </option>
                 @endforeach
             </select>

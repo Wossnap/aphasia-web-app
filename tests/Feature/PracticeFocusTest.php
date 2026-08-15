@@ -113,6 +113,34 @@ class PracticeFocusTest extends TestCase
         $this->assertSame(3, $families[0]['count']);
     }
 
+    /**
+     * Which category needs the time is the first thing you would otherwise
+     * have to go and find out, so the page opens on it rather than on
+     * whichever category happens to sort first.
+     */
+    public function test_it_opens_on_the_category_with_the_most_needing_help(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+
+        // Sorts first by name, and has nothing wrong with it.
+        $easy = Category::create(['name' => 'A quiet category', 'slug' => 'quiet']);
+        $this->category = $easy;
+        $this->itemWithHistory('ሰ', 18, 2, $admin);
+
+        // Sorts last, and is where the trouble is.
+        $hard = Category::create(['name' => 'Z busy category', 'slug' => 'busy']);
+        $this->category = $hard;
+        foreach (['ጠ', 'ጡ', 'ጢ'] as $letter) {
+            $this->itemWithHistory($letter, 1, 19, $admin);
+        }
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.practice-focus.index', ['user_id' => $admin->id]));
+
+        $this->assertSame($hard->id, $response->viewData('category')->id);
+        $this->assertSame(3, $response->viewData('needingHelp')[$hard->id]);
+    }
+
     public function test_it_is_closed_to_people_who_are_not_admins(): void
     {
         $user = User::factory()->create(['is_admin' => false]);

@@ -10,6 +10,7 @@ use App\Services\Practice\ConfusionGraph;
 use App\Services\Practice\ItemStats;
 use App\Services\Practice\WordFamily;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * "Work on these with him."
@@ -35,11 +36,16 @@ class PracticeFocusController extends Controller
         $categories = Category::orderBy('name')->get();
         $users = User::orderBy('name')->get(['id', 'name']);
 
+        $userId = $request->filled('user_id') ? (int) $request->query('user_id') : $this->busiestUser();
+
+        // How many items in each category are going nowhere, so the page can
+        // open on the one that most needs the time rather than on whichever
+        // category happens to sort first.
+        $needingHelp = $this->countNeedingHelp($userId);
+
         $category = $request->filled('category_id')
             ? $categories->firstWhere('id', (int) $request->query('category_id'))
-            : $categories->first();
-
-        $userId = $request->filled('user_id') ? (int) $request->query('user_id') : $this->busiestUser();
+            : $categories->sortByDesc(fn ($c) => $needingHelp[$c->id] ?? 0)->first();
 
         $rows = collect();
         $familyRows = collect();
@@ -94,8 +100,38 @@ class PracticeFocusController extends Controller
             'userId' => $userId,
             'rows' => $rows,
             'familyRows' => $familyRows,
+            'needingHelp' => $needingHelp,
             'needsHelpBelow' => (float) config('practice.bands.needs_help_below', 0.25),
         ]);
+    }
+
+    /**
+     * Items per category that he has tried enough times to judge and is still
+     * getting nowhere with.
+     *
+     * Deliberately one query rather than running the full per-item statistics
+     * for every category: this only decides which category the page opens on
+     * and what the dropdown says beside each name.
+     *
+     * @return array<int, int> keyed by category id
+     */
+    private function countNeedingHelp(?int $userId): array
+    {
+        $windowDays = (int) config('practice.bands.window_days', 30);
+        $minAttempts = (int) config('practice.bands.min_attempts', 4);
+        $threshold = (float) config('practice.bands.needs_help_below', 0.25);
+
+        return DB::table('speech_attempts as sa')
+            ->join('category_word as cw', 'cw.amharic_word_id', '=', 'sa.amharic_word_id')
+            ->where('sa.created_at', '>=', now()->subDays($windowDays))
+            ->when($userId, fn ($q) => $q->where('sa.user_id', $userId))
+            ->groupBy('cw.category_id', 'sa.amharic_word_id')
+            ->havingRaw('COUNT(*) >= ?', [$minAttempts])
+            ->havingRaw('SUM(sa.is_correct) / COUNT(*) < ?', [$threshold])
+            ->select('cw.category_id')
+            ->get()
+            ->countBy('category_id')
+            ->all();
     }
 
     /**

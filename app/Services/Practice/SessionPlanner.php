@@ -212,7 +212,11 @@ class SessionPlanner
         // with five failures in a row, which is the exact thing the engine
         // exists to prevent, happening in the part meant to protect him from
         // it.
-        if ($closeLevel !== null && !$recovering) {
+        // Skipped only when the closing row is the row he is missing in. A run
+        // of misses somewhere else is no reason to abandon the close and drop
+        // through to picking loose letters by score, which is how a sitting
+        // ended on ቦ — the last letter of the በ row offered as its opening.
+        if ($closeLevel !== null && !($recovering && $closeLevel === $lastLevel)) {
             $item = $this->fromFocus($withinLevel, $closeLevel);
 
             if ($item) {
@@ -223,7 +227,12 @@ class SessionPlanner
         // A mixed place: a short run of wins drawn from the easy levels rather
         // than a row walked through. Same items, spread out instead of
         // grouped, which is the only difference the two settings make.
-        if (($closing || ($segment && $segment['type'] === 'mixed')) && !$overrun) {
+        // Loose letters chosen by score belong to the mixed setting only. In a
+        // category walking whole rows this path was still reachable during the
+        // close, and it is what produced ቦ — the end of the በ row served as
+        // its start. Rows mode falls through to the breather instead, which
+        // opens a row at its beginning.
+        if ((($closing && $mixEasy) || ($segment && $segment['type'] === 'mixed')) && !$overrun) {
             $win = $this->fromEasyLevels(
                 $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
                 $stats,
@@ -578,7 +587,7 @@ class SessionPlanner
         $fromFinished = $eligible->whereIn('level', $done);
 
         if ($fromFinished->isNotEmpty()) {
-            return $this->freshestFirst($fromFinished);
+            return $this->rowOpener($fromFinished);
         }
 
         return $this->winFrom($eligible, $current ?? -1, $settings);
@@ -853,6 +862,26 @@ class SessionPlanner
             return null;
         }
 
+        // Strong ROWS, not strong letters. Filtering letter by letter leaves
+        // only the handful he never misses, and opening a row from those hands
+        // him ላ out of ለ ሉ ሊ ላ ሌ ል ሎ — the strongest letter of a middling row,
+        // presented as the start of it. A win should be the beginning of a row
+        // he has, so the row is what has to qualify.
+        $strongRows = $elsewhere
+            ->groupBy('level')
+            ->filter(function ($rows) use ($settings) {
+                $known = $rows->filter(fn ($i) => $i['accuracy'] !== null);
+
+                return $known->isNotEmpty() && $known->avg('accuracy') >= $settings['bands']['support_min'];
+            })
+            ->flatten(1);
+
+        if ($strongRows->isNotEmpty()) {
+            return $this->rowOpener($strongRows);
+        }
+
+        // No row is strong enough to open: fall back to the surest letters
+        // going, which is better than offering a row he cannot start.
         $support = $elsewhere->filter(
             fn ($i) => $i['accuracy'] !== null && $i['accuracy'] >= $settings['bands']['support_min']
         );
@@ -870,6 +899,38 @@ class SessionPlanner
     {
         return $candidates
             ->sortBy(fn ($i) => [$i['session_attempts'], -($i['accuracy'] ?? 0)])
+            ->first();
+    }
+
+    /**
+     * A win from a row, taken at the row's own beginning.
+     *
+     * Pick the strongest row available, then its first letter — not its best
+     * letter. Sorting straight by accuracy handed him ሆ out of ሀ ሁ ሂ ሃ ሄ ህ ሆ,
+     * because ሆ is the one he never misses. That is the end of the row offered
+     * as though it were the start of it, and it also spends the letter, so
+     * when the row's own turn comes it opens on ሁ with ሆ already gone.
+     */
+    private function rowOpener(Collection $candidates): ?array
+    {
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        $byLevel = $candidates->groupBy('level');
+
+        $best = $byLevel
+            ->map(fn ($rows, $level) => [
+                'level' => $level,
+                // Untouched rows before part-used ones, then the strongest.
+                'used' => $rows->sum('session_attempts'),
+                'accuracy' => $rows->filter(fn ($i) => $i['accuracy'] !== null)->avg('accuracy') ?? 0,
+            ])
+            ->sortBy(fn ($l) => [$l['used'], -$l['accuracy']])
+            ->first();
+
+        return $byLevel[$best['level']]
+            ->sortBy(fn ($i) => [$i['session_attempts'], $i['order'] ?? PHP_INT_MAX])
             ->first();
     }
 

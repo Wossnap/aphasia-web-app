@@ -853,6 +853,35 @@ class SessionPlannerTest extends TestCase
         $this->assertSame('close', $plan['slot']);
     }
 
+    /**
+     * A win from a row is the row's first letter, not its best one. Sorting by
+     * score handed him ሆ out of ሀ ሁ ሂ ሃ ሄ ህ ሆ, because ሆ is the one he never
+     * misses — the end of the row offered as though it were the start of it,
+     * and it spends the letter, so when the row's own turn comes it opens on
+     * ሁ with ሆ already gone.
+     */
+    public function test_a_win_opens_a_row_at_its_first_letter(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 20, 'practice.misses.recover_after' => 2]);
+
+        // A strong row whose last letter is the strongest of all.
+        foreach ([['ሀ', 1, 17], ['ሁ', 2, 16], ['ሂ', 3, 16], ['ሆ', 4, 20]] as [$letter, $order, $correct]) {
+            $this->history($this->word($letter, level: 1, order: $order), $correct, 20 - $correct);
+        }
+
+        foreach ([['ጠ', 5], ['ጡ', 6]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 27, order: $order), 4, 16);
+        }
+
+        $this->attemptNow(AmharicWord::where('word', 'ጠ')->first(), correct: false, secondsAgo: 40);
+        $this->attemptNow(AmharicWord::where('word', 'ጡ')->first(), correct: false, secondsAgo: 30);
+
+        $plan = $this->next();
+
+        $this->assertSame('ሀ', $plan['item']['word'], 'the start of the row, not its best letter');
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');

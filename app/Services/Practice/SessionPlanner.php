@@ -30,6 +30,7 @@ class SessionPlanner
         private ItemStats $stats,
         private WordFamily $families,
         private ConfusionGraph $confusions,
+        private RowSounds $sounds,
     ) {
     }
 
@@ -118,7 +119,8 @@ class SessionPlanner
         Category $category,
     ): array {
         $mixEasy = $category->mixesEasyLevels();
-        $playlist = $this->levelPlaylist($stats, $settings, $mixEasy);
+        $soundOf = $this->sounds->groups($category);
+        $playlist = $this->levelPlaylist($stats, $settings, $mixEasy, $soundOf);
         $segment = $this->currentSegment($playlist, $stats, $settings);
         $current = $segment['level'] ?? null;
 
@@ -132,7 +134,7 @@ class SessionPlanner
             : $this->typicalRowLength($stats);
 
         $closing = $position > $total - $reserve;
-        $closeLevel = ($closing && !$mixEasy) ? $this->closingLevel($stats, $settings) : null;
+        $closeLevel = ($closing && !$mixEasy) ? $this->closingLevel($stats, $settings, $soundOf) : null;
 
         // The cap is a target, not a guillotine. Cutting a row in half to hit
         // a round number is the opposite of working a level at a time, so once
@@ -189,6 +191,7 @@ class SessionPlanner
                 $stats,
                 $settings,
                 $lastLevel,
+                $soundOf,
             );
 
             // A preference, not a block: if there is no honest win to be had,
@@ -254,7 +257,7 @@ class SessionPlanner
             $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true);
         }
 
-        $breather = $this->breather($eligible, $current, $playlist, $stats, $settings, $lastWasMiss ? $lastLevel : null);
+        $breather = $this->breather($eligible, $current, $playlist, $stats, $settings, $lastWasMiss ? $lastLevel : null, $soundOf);
 
         return $this->present($breather, 'close', $position, $total, $current)
             ?? $this->finished($position, $total, 'exhausted');
@@ -271,7 +274,7 @@ class SessionPlanner
      *
      * @return array<int, int> level numbers, in the order they are worked
      */
-    private function levelPlaylist(Collection $stats, array $settings, bool $mixEasy = false): array
+    private function levelPlaylist(Collection $stats, array $settings, bool $mixEasy = false, array $soundOf = []): array
     {
         $levels = $this->levelSummary($stats, $settings);
 
@@ -284,6 +287,9 @@ class SessionPlanner
         $shape = $settings['level_shape'];
         $playlist = [];
         $taken = [];
+        // ሀ, ሐ and ኀ are three rows and one /h/. Taking all three in a sitting
+        // is doing one row three times while appearing to do three.
+        $takenSounds = [];
 
         // Enough places to fill the sitting even if every level goes perfectly.
         $places = max(count($shape), (int) ceil($settings['session']['max_attempts'] / 4));
@@ -299,13 +305,17 @@ class SessionPlanner
                 continue;
             }
 
-            $level = $this->takeLevel($byBand, $wanted, $taken, skipEasy: $mixEasy);
+            $level = $this->takeLevel($byBand, $wanted, $taken, skipEasy: $mixEasy, soundOf: $soundOf, takenSounds: $takenSounds);
 
             if ($level === null) {
                 break;
             }
 
             $taken[$level] = true;
+
+            if (isset($soundOf[$level])) {
+                $takenSounds[$soundOf[$level]] = true;
+            }
             $playlist[] = ['type' => 'level', 'level' => $level];
         }
 
@@ -334,8 +344,14 @@ class SessionPlanner
      * other bands so a category with no hard levels left still fills its
      * playlist rather than cutting the sitting short.
      */
-    private function takeLevel(array $byBand, string $wanted, array $taken, bool $skipEasy = false): ?int
-    {
+    private function takeLevel(
+        array $byBand,
+        string $wanted,
+        array $taken,
+        bool $skipEasy = false,
+        array $soundOf = [],
+        array $takenSounds = [],
+    ): ?int {
         $order = match ($wanted) {
             'easy' => ['easy', 'medium', 'hard'],
             'hard' => ['hard', 'medium', 'easy'],
@@ -348,6 +364,21 @@ class SessionPlanner
             $order = array_values(array_diff($order, ['easy']));
         }
 
+        foreach ($order as $band) {
+            foreach ($byBand[$band] as $level) {
+                $id = $level['level'];
+                $sound = $soundOf[$id] ?? null;
+
+                if (isset($taken[$id]) || ($sound !== null && isset($takenSounds[$sound]))) {
+                    continue;
+                }
+
+                return $id;
+            }
+        }
+
+        // Every remaining row repeats a sound already in the sitting. Better a
+        // repeated sound than a short session, so take the first free row.
         foreach ($order as $band) {
             foreach ($byBand[$band] as $level) {
                 if (!isset($taken[$level['level']])) {
@@ -443,7 +474,7 @@ class SessionPlanner
      * the same on every request while the row is being walked — otherwise the
      * close would jump to a different family after each item.
      */
-    private function closingLevel(Collection $stats, array $settings): ?int
+    private function closingLevel(Collection $stats, array $settings, array $soundOf = []): ?int
     {
         $abandonAfter = (int) $settings['focus']['abandon_after_misses'];
         $easyLevels = $this->levelsByBand($this->levelSummary($stats, $settings), $settings)['easy'];
@@ -472,6 +503,28 @@ class SessionPlanner
             return null;
         }
 
+        // How much each sound has already had. Closing on ሐ after a sitting
+        // spent on ሀ is closing on the same /h/ he has been doing all along —
+        // and a single letter of ሐ served as a win earlier is enough to make
+        // that row look "under way" and win the close outright.
+        $soundUse = [];
+
+        foreach ($stats as $item) {
+            $sound = $soundOf[$item['level']] ?? null;
+
+            if ($sound !== null) {
+                $soundUse[$sound] = ($soundUse[$sound] ?? 0) + $item['session_attempts'];
+            }
+        }
+
+        $spent = (int) max(1, $this->typicalRowLength($stats));
+
+        $fresh = $rows->filter(fn ($r) => ($soundUse[$soundOf[$r['level']] ?? -1] ?? 0) < $spent);
+
+        if ($fresh->isNotEmpty()) {
+            $rows = $fresh;
+        }
+
         $underway = $rows->filter(fn ($r) => $r['attempted'] > 0 && $r['unmet'] > 0);
 
         if ($underway->isNotEmpty()) {
@@ -481,7 +534,7 @@ class SessionPlanner
         $untouched = $rows->filter(fn ($r) => $r['attempted'] === 0);
 
         return ($untouched->isNotEmpty() ? $untouched : $rows)
-            ->sortBy('last_worked')
+            ->sortBy(fn ($r) => [$soundUse[$soundOf[$r['level']] ?? -1] ?? 0, $r['last_worked']])
             ->first()['level'] ?? null;
     }
 
@@ -563,14 +616,20 @@ class SessionPlanner
         Collection $stats,
         array $settings,
         ?int $lastLevel = null,
+        array $soundOf = [],
     ): ?array {
         $eligible = $this->winnable($eligible, $stats, $settings);
 
         // Also step away from the row he has just been missing in, even if it
         // has not yet earned the abandon threshold. Two misses is enough to
-        // know that row is not where a win is going to come from.
+        // know that row is not where a win is going to come from — and step
+        // away from the same sound too, since ሐ after ሀ is the same /h/ in a
+        // different row and no kind of change.
         if ($lastLevel !== null) {
-            $eligible = $eligible->where('level', '!=', $lastLevel);
+            $sound = $soundOf[$lastLevel] ?? null;
+
+            $eligible = $eligible->reject(fn ($i) => $i['level'] === $lastLevel
+                || ($sound !== null && ($soundOf[$i['level']] ?? null) === $sound));
         }
 
         // Level places only: a mixed place has no row of its own to come back
@@ -587,10 +646,10 @@ class SessionPlanner
         $fromFinished = $eligible->whereIn('level', $done);
 
         if ($fromFinished->isNotEmpty()) {
-            return $this->rowOpener($fromFinished);
+            return $this->rowOpener($fromFinished, $stats, $soundOf);
         }
 
-        return $this->winFrom($eligible, $current ?? -1, $settings);
+        return $this->winFrom($eligible, $current ?? -1, $settings, null, $stats, $soundOf);
     }
 
     /**
@@ -850,10 +909,16 @@ class SessionPlanner
      * A win, taken from outside the level being worked. Strongest first —
      * this is the one place the engine should be picking something easy.
      */
-    private function winFrom(Collection $eligible, int $focus, array $settings, ?Collection $stats = null): ?array
-    {
-        if ($stats) {
-            $eligible = $this->winnable($eligible, $stats, $settings);
+    private function winFrom(
+        Collection $eligible,
+        int $focus,
+        array $settings,
+        ?Collection $winnableAgainst = null,
+        ?Collection $stats = null,
+        array $soundOf = [],
+    ): ?array {
+        if ($winnableAgainst) {
+            $eligible = $this->winnable($eligible, $winnableAgainst, $settings);
         }
 
         $elsewhere = $eligible->where('level', '!=', $focus);
@@ -877,7 +942,7 @@ class SessionPlanner
             ->flatten(1);
 
         if ($strongRows->isNotEmpty()) {
-            return $this->rowOpener($strongRows);
+            return $this->rowOpener($strongRows, $stats, $soundOf);
         }
 
         // No row is strong enough to open: fall back to the surest letters
@@ -911,10 +976,26 @@ class SessionPlanner
      * as though it were the start of it, and it also spends the letter, so
      * when the row's own turn comes it opens on ሁ with ሆ already gone.
      */
-    private function rowOpener(Collection $candidates): ?array
+    private function rowOpener(Collection $candidates, Collection $stats = null, array $soundOf = []): ?array
     {
         if ($candidates->isEmpty()) {
             return null;
+        }
+
+        // How much of the sitting each sound has already had. Without this the
+        // wins all come from one row: ሀ opens the session, and then ሀ ሂ ሃ ሄ ህ
+        // supply every breather after it, so he spends a third of the sitting
+        // on /h/ however many other rows he has.
+        $soundUse = [];
+
+        if ($stats && $soundOf !== []) {
+            foreach ($stats as $item) {
+                $sound = $soundOf[$item['level']] ?? null;
+
+                if ($sound !== null) {
+                    $soundUse[$sound] = ($soundUse[$sound] ?? 0) + $item['session_attempts'];
+                }
+            }
         }
 
         $byLevel = $candidates->groupBy('level');
@@ -922,11 +1003,13 @@ class SessionPlanner
         $best = $byLevel
             ->map(fn ($rows, $level) => [
                 'level' => $level,
-                // Untouched rows before part-used ones, then the strongest.
+                // Least-used sound first, then untouched rows before part-used
+                // ones, then the strongest.
+                'sound_used' => $soundUse[$soundOf[(int) $level] ?? -1] ?? 0,
                 'used' => $rows->sum('session_attempts'),
                 'accuracy' => $rows->filter(fn ($i) => $i['accuracy'] !== null)->avg('accuracy') ?? 0,
             ])
-            ->sortBy(fn ($l) => [$l['used'], -$l['accuracy']])
+            ->sortBy(fn ($l) => [$l['sound_used'], $l['used'], -$l['accuracy']])
             ->first();
 
         return $byLevel[$best['level']]

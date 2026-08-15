@@ -208,6 +208,19 @@ return [
     ],
 
     /*
+     | Rows that are the same sound. ሀ, ሐ and ኀ are three rows of the alphabet
+     | and one /h/, and working all three in a sitting is doing one row three
+     | times. They are found from the forms each row accepts, which already
+     | record it.
+     |
+     | A form accepted by more rows than this says nothing about sound — ሰው
+     | comes back for sixteen different targets — so it is ignored as evidence.
+     */
+    'sounds' => [
+        'max_levels_per_form' => 5,
+    ],
+
+    /*
      | Per-category overrides, keyed by category slug. Same keys as above.
      | Left empty on purpose: the engine should work for a new category the
      | day it is added, without anyone configuring it first.

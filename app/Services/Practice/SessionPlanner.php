@@ -149,7 +149,26 @@ class SessionPlanner
         $rowUnfinished = $closeRow->sum('session_attempts') > 0
             && $closeRow->filter(fn ($i) => $i['session_attempts'] === 0)->isNotEmpty();
 
-        if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss, $rowUnfinished)) {
+        // The close is one row, and it ends when that row is finished — not
+        // after a fixed count, which would cut the row in half again. Without
+        // this the close simply kept choosing rows: a sitting finished
+        // ሀ ሁ ሂ ሃ ሄ ህ ሆ and went straight on to ሐ ሑ ሒ ሓ ሔ ሕ ሖ, a second row
+        // and the same /h/ over again.
+        $lastLevel = $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null;
+
+        // The row the close actually opened on — read from the attempts made
+        // since the close began, not from whatever row happens to be last. A
+        // row finished earlier in the sitting must not count as the close
+        // having already happened.
+        $openedOn = $session->slice(max(0, $total - $reserve))->first();
+        $openedLevel = $openedOn ? ($stats[$openedOn->amharic_word_id]['level'] ?? null) : null;
+        $openedRow = $openedLevel !== null ? $stats->where('level', $openedLevel) : collect();
+
+        $closeDone = $closing
+            && $openedRow->isNotEmpty()
+            && $openedRow->filter(fn ($i) => $i['session_attempts'] === 0)->isEmpty();
+
+        if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss, $rowUnfinished && !$closeDone, $closeDone)) {
             return $finish;
         }
 
@@ -177,7 +196,6 @@ class SessionPlanner
         // failures before anything landed. Carrying on through a row he is
         // already inside is fine, and the abandon rule bounds that; beginning
         // a new one is not, so a win comes first.
-        $lastLevel = $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null;
         $startingNewRow = $current !== null && $current !== $lastLevel;
 
         if ($recovering && $startingNewRow && !$overrun && !$closing) {
@@ -737,6 +755,7 @@ class SessionPlanner
         int $total,
         bool $lastWasMiss,
         bool $rowUnfinished = false,
+        bool $closeDone = false,
     ): ?array {
         if ($session->isEmpty()) {
             return null;
@@ -747,7 +766,7 @@ class SessionPlanner
         $overrunBy = $position - $total;
         $ceiling = (int) $settings['session']['max_overrun'];
 
-        $atCap = $position > $total;
+        $atCap = $position > $total || $closeDone;
         $outOfTime = $elapsed >= $maxMinutes;
 
         // Past the cap with a row still open: finish the row. Fifty-six

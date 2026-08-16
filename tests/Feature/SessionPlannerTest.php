@@ -652,11 +652,11 @@ class SessionPlannerTest extends TestCase
         }
 
         $served = $this->runSitting(8);
-        $closing = array_slice($served, -3);
 
-        foreach ($closing as $item) {
-            $this->assertSame(9, $item['level'], 'the sitting must finish on ground he is sure of');
-            $this->assertSame('close', $item['slot']);
+        $this->assertSame(9, end($served)['level'], 'the sitting must finish on ground he is sure of');
+
+        foreach (array_filter($served, fn ($s) => $s['slot'] === 'close') as $item) {
+            $this->assertSame(9, $item['level'], 'everything in the close comes from the easy row');
         }
     }
 

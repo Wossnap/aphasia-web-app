@@ -134,7 +134,54 @@ class SessionPlanner
             : $this->typicalRowLength($stats);
 
         $closing = $position > $total - $reserve;
-        $closeLevel = ($closing && !$mixEasy) ? $this->closingLevel($stats, $settings, $soundOf) : null;
+
+        // The row the close opened on — read from the attempts made since the
+        // close began, not from whatever row happens to be last. A row
+        // finished earlier in the sitting must not count as the close having
+        // already happened.
+        $openedOn = $session->slice(max(0, $total - $reserve))->first();
+        $openedLevel = $openedOn ? ($stats[$openedOn->amharic_word_id]['level'] ?? null) : null;
+        $openedRow = $openedLevel !== null ? $stats->where('level', $openedLevel) : collect();
+
+        // Once the close has opened on a row it stays there until the row runs
+        // out. Re-choosing on every request is what made a sitting end
+        // ሱ ኡ ሲ ኢ ቱ ሳ — six single letters off three different rows, five of
+        // them missed, on letters he had scored 7 out of 7 on earlier in the
+        // same session. The preference for spreading wins across sounds is
+        // right in the middle of a sitting and wrong here, where the job is to
+        // settle into one row he knows.
+        // "Letters left" means letters this close has not served yet — not
+        // letters untouched all sitting, because by the close its row has
+        // usually been walked once already and every row would look finished
+        // on arrival; and not the repeat cap either, which let the close walk
+        // the same row twice. One pass, counted from the close's own attempts.
+        $closeSeen = $session->slice(max(0, $total - $reserve))
+            ->pluck('amharic_word_id')
+            ->flip();
+
+        // A letter counts as left only if the close has not served it and it
+        // is still under the per-sitting cap. Without the second half, a row
+        // whose first letter was spent earlier could never be completed, so
+        // the close never ended and leaked into other rows again.
+        $maxRepeats = (int) $settings['spacing']['max_repeats_per_session'];
+
+        $hasLeft = fn ($row) => $row
+            ->filter(fn ($i) => !$closeSeen->has($i['word_id']) && $i['session_attempts'] < $maxRepeats)
+            ->isNotEmpty();
+
+        $closeLevel = null;
+
+        if ($closing && !$mixEasy) {
+            // Staying put does not mean staying on a row that is going badly:
+            // a close he cannot do is not a close.
+            $openedHolds = $openedLevel !== null
+                && $openedRow->sum('session_misses') < (int) $settings['focus']['abandon_after_misses']
+                && $hasLeft($openedRow);
+
+            $closeLevel = $openedHolds
+                ? $openedLevel
+                : $this->closingLevel($stats, $settings, $soundOf);
+        }
 
         // The cap is a target, not a guillotine. Cutting a row in half to hit
         // a round number is the opposite of working a level at a time, so once
@@ -146,8 +193,7 @@ class SessionPlanner
         // the ceiling.
         $closeRow = $closeLevel !== null ? $stats->where('level', $closeLevel) : collect();
 
-        $rowUnfinished = $closeRow->sum('session_attempts') > 0
-            && $closeRow->filter(fn ($i) => $i['session_attempts'] === 0)->isNotEmpty();
+        $rowUnfinished = $closeRow->sum('session_attempts') > 0 && $hasLeft($closeRow);
 
         // The close is one row, and it ends when that row is finished — not
         // after a fixed count, which would cut the row in half again. Without
@@ -156,17 +202,7 @@ class SessionPlanner
         // and the same /h/ over again.
         $lastLevel = $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null;
 
-        // The row the close actually opened on — read from the attempts made
-        // since the close began, not from whatever row happens to be last. A
-        // row finished earlier in the sitting must not count as the close
-        // having already happened.
-        $openedOn = $session->slice(max(0, $total - $reserve))->first();
-        $openedLevel = $openedOn ? ($stats[$openedOn->amharic_word_id]['level'] ?? null) : null;
-        $openedRow = $openedLevel !== null ? $stats->where('level', $openedLevel) : collect();
-
-        $closeDone = $closing
-            && $openedRow->isNotEmpty()
-            && $openedRow->filter(fn ($i) => $i['session_attempts'] === 0)->isEmpty();
+        $closeDone = $closing && $openedRow->isNotEmpty() && !$hasLeft($openedRow);
 
         if ($finish = $this->finishIfDone($session, $settings, $position, $total, $lastWasMiss, $rowUnfinished && !$closeDone, $closeDone)) {
             return $finish;

@@ -683,15 +683,14 @@ class SessionPlannerTest extends TestCase
 
         $closing = array_values(array_filter($served, fn ($s) => $s['slot'] === 'close'));
 
-        // One row, walked in order, and carried to its end — the letters it
-        // opened the sitting with are already behind it, so what is left is
-        // the rest of that same row rather than a fresh one.
+        // One row, and each of its letters once — the close settles into a
+        // single row rather than taking a letter from here and a letter from
+        // there, which is what left a sitting ending ሱ ኡ ሲ ኢ ቱ ሳ.
+        $words = array_column($closing, 'word');
+
         $this->assertSame([9], array_values(array_unique(array_column($closing, 'level'))));
-        $this->assertSame(
-            ['ሲ', 'ሳ', 'ሴ', 'ስ', 'ሶ'],
-            array_column($closing, 'word'),
-            'the close finishes the row it was in, in order',
-        );
+        $this->assertSame($words, array_values(array_unique($words)), 'no letter twice in the close');
+        $this->assertGreaterThanOrEqual(5, count($words), 'the close walks the row, not a letter or two');
     }
 
     /**

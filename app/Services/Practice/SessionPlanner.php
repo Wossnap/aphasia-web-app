@@ -189,7 +189,7 @@ class SessionPlanner
         // stepping away sound by sound but the playlist itself: a hard level
         // is followed by a middling one and then an easy one, and a level
         // producing nothing at all is abandoned partway.
-        $withinLevel = $this->eligible($stats, $last, lastWasMiss: false, userId: $userId, settings: $settings);
+        $withinLevel = $this->eligible($stats, $last, lastWasMiss: false, userId: $userId, settings: $settings, soundOf: $soundOf);
 
         // Starting a fresh row while he is on a run of misses is how a sitting
         // opens ሰ✗ ሰ✗ ሱ✗ ኸ✗ ኹ✗ ኺ✗ — two abandoned rows back to back, six
@@ -203,7 +203,7 @@ class SessionPlanner
             // row is one he is strong in, opening it is the win. What must be
             // avoided is the row he has just been missing in.
             $win = $this->breather(
-                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
+                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, soundOf: $soundOf),
                 null,
                 $playlist,
                 $stats,
@@ -255,7 +255,7 @@ class SessionPlanner
         // opens a row at its beginning.
         if ((($closing && $mixEasy) || ($segment && $segment['type'] === 'mixed')) && !$overrun) {
             $win = $this->fromEasyLevels(
-                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings),
+                $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, soundOf: $soundOf),
                 $stats,
                 $settings,
                 $last ? ($stats[$last->amharic_word_id]['level'] ?? null) : null,
@@ -269,10 +269,10 @@ class SessionPlanner
         // Between levels, and at the end of the sitting: a win. Here the
         // sibling rule applies again, since this is meant to be a change of
         // sound as well as a change of level.
-        $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings);
+        $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, soundOf: $soundOf);
 
         if ($eligible->isEmpty()) {
-            $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true);
+            $eligible = $this->eligible($stats, $last, $lastWasMiss, $userId, $settings, relaxRepeats: true, soundOf: $soundOf);
         }
 
         $breather = $this->breather($eligible, $current, $playlist, $stats, $settings, $lastWasMiss ? $lastLevel : null, $soundOf);
@@ -1063,8 +1063,25 @@ class SessionPlanner
         ?int $userId,
         array $settings,
         bool $relaxRepeats = false,
+        array $soundOf = [],
     ): Collection {
         $setAsideAfter = (int) $settings['misses']['set_aside_after'];
+
+        // One row per sound for the whole sitting, not just for the playlist.
+        // ሀ, ሐ and ኀ are the same seven sounds written three ways, so once one
+        // of them has been used the other two are the same practice over
+        // again. Applying this only when the playlist was built let the wins,
+        // the breathers and the close pull the other two rows in anyway — a
+        // sitting still spent a third of itself on /h/.
+        $soundOwner = [];
+
+        foreach ($stats as $item) {
+            $sound = $soundOf[$item['level']] ?? null;
+
+            if ($sound !== null && $item['session_attempts'] > 0 && !isset($soundOwner[$sound])) {
+                $soundOwner[$sound] = $item['level'];
+            }
+        }
 
         $maxRepeats = $relaxRepeats
             ? PHP_INT_MAX
@@ -1075,8 +1092,15 @@ class SessionPlanner
         $lastWord = $last?->word?->word;
 
         return $stats->filter(function (array $item) use (
-            $last, $lastWord, $lastWasMiss, $userId, $setAsideAfter, $maxRepeats
+            $last, $lastWord, $lastWasMiss, $userId, $setAsideAfter, $maxRepeats, $soundOf, $soundOwner
         ) {
+            // Another row of a sound already being practised today.
+            $sound = $soundOf[$item['level']] ?? null;
+
+            if ($sound !== null && isset($soundOwner[$sound]) && $soundOwner[$sound] !== $item['level']) {
+                return false;
+            }
+
             // Set aside for this sitting, and on the admin list to work
             // through with someone.
             if ($item['session_misses'] >= $setAsideAfter) {

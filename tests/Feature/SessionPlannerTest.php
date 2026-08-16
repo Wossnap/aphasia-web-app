@@ -882,6 +882,48 @@ class SessionPlannerTest extends TestCase
         $this->assertSame('ሀ', $plan['item']['word'], 'the start of the row, not its best letter');
     }
 
+    /**
+     * ሀ, ሐ and ኀ are the same seven sounds written three ways — read the Latin
+     * spellings down the columns and every position matches. A sitting that
+     * works all three is doing one row three times.
+     *
+     * The rule held for the playlist and nowhere else, so the wins, breathers
+     * and close pulled the other rows in regardless and a third of a sitting
+     * still went on /h/. It is applied at the one gate every path uses now.
+     */
+    public function test_only_one_row_of_a_sound_is_used_in_a_sitting(): void
+    {
+        $this->category->update(['session_mode' => Category::SESSION_BY_LEVEL]);
+        config(['practice.session.max_attempts' => 20]);
+
+        // Three rows, one sound: same Latin spellings, so RowSounds groups them.
+        foreach ([[1, 'ሀ', 'ሁ'], [3, 'ሐ', 'ሑ'], [14, 'ኀ', 'ኁ']] as $n => [$level, $a, $b]) {
+            $this->history($this->word($a, level: $level, order: $n * 2 + 1), 18, 2);
+            $this->history($this->word($b, level: $level, order: $n * 2 + 2), 18, 2);
+
+            foreach ([$a => 'ha', $b => 'hu'] as $letter => $latin) {
+                $item = AmharicWord::where('word', $letter)->first();
+                $item->transliterations = [$letter, $latin];
+                $item->save();
+            }
+        }
+
+        // Something to work on, so the sitting is not only wins.
+        foreach ([['ጠ', 7], ['ጡ', 8]] as [$letter, $order]) {
+            $this->history($this->word($letter, level: 27, order: $order), 4, 16);
+        }
+
+        Cache::flush();
+
+        $served = $this->runSitting(20, allCorrect: false);
+        $hRows = array_unique(array_filter(
+            array_column($served, 'level'),
+            fn ($level) => in_array($level, [1, 3, 14], true),
+        ));
+
+        $this->assertLessThanOrEqual(1, count($hRows), 'one row per sound, not three');
+    }
+
     public function test_the_endpoint_answers_with_a_plan(): void
     {
         $word = $this->word('ሰ');
